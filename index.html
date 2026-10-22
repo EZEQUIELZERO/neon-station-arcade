@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NEON ARCADE // Tetris · Snake · Turbo Racer 2D</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-badge">ARCADE OS</span>
+      <h1>NEON<span>STATION</span></h1>
+    </div>
+
+    <nav class="game-tabs" aria-label="Selector de juegos">
+      <button class="tab-btn active" data-game="tetris">
+        <span class="tab-icon">🧱</span>
+        <span class="tab-text">
+          <strong>TETRIS</strong>
+          <small>Cyber Blocks</small>
+        </span>
+      </button>
+      <button class="tab-btn" data-game="snake">
+        <span class="tab-icon">🐍</span>
+        <span class="tab-text">
+          <strong>SNAKE</strong>
+          <small>Neon Viper</small>
+        </span>
+      </button>
+      <button class="tab-btn" data-game="racer">
+        <span class="tab-icon">🏎️</span>
+        <span class="tab-text">
+          <strong>TURBO 2D</strong>
+          <small>Highway Drift</small>
+        </span>
+      </button>
+    </nav>
+
+    <div class="header-actions">
+      <button id="soundToggle" class="icon-btn" title="Activar/Desactivar sonido FX">
+        <span id="soundIcon">🔊</span>
+        <span class="btn-label">SFX ON</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="arcade-layout">
+    <!-- Panel Izquierdo: Estadísticas y Estado -->
+    <aside class="side-panel left-panel">
+      <div class="panel-card">
+        <div class="card-header">
+          <span class="dot cyan"></span>
+          <h2 id="gameTitle">TETRIS // CYBER BLOCKS</h2>
+        </div>
+        <p id="gameDesc" class="game-desc">
+          Encaja los tetrominós, usa la pieza en reserva y encadena líneas para multiplicar tu puntuación.
+        </p>
+
+        <div class="stats-grid">
+          <div class="stat-box highlight">
+            <span class="stat-label">PUNTUACIÓN</span>
+            <span id="scoreValue" class="stat-value">0</span>
+          </div>
+          <div class="stat-box gold">
+            <span class="stat-label">RÉCORD</span>
+            <span id="highScoreValue" class="stat-value">0</span>
+          </div>
+          <div class="stat-box">
+            <span id="metaLabel1" class="stat-label">NIVEL</span>
+            <span id="metaValue1" class="stat-value">1</span>
+          </div>
+          <div class="stat-box">
+            <span id="metaLabel2" class="stat-label">LÍNEAS</span>
+            <span id="metaValue2" class="stat-value">0</span>
+          </div>
+        </div>
+
+        <!-- Panel exclusivo de Tetris: Siguiente y Reserva -->
+        <div id="tetrisExtras" class="extras-box">
+          <div class="mini-preview">
+            <span>SIGUIENTE</span>
+            <canvas id="nextCanvas" width="110" height="90"></canvas>
+          </div>
+          <div class="mini-preview">
+            <span>RESERVA (C)</span>
+            <canvas id="holdCanvas" width="110" height="90"></canvas>
+          </div>
+        </div>
+
+        <!-- Panel exclusivo de Snake: Modo de bordes -->
+        <div id="snakeExtras" class="extras-box hidden">
+          <div class="option-row">
+            <span>Muros letales</span>
+            <label class="switch">
+              <input type="checkbox" id="snakeWallsToggle" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="snake-legend">
+            <div><span class="legend-dot red"></span> Manzana (+10)</div>
+            <div><span class="legend-dot gold"></span> Bonus Estrella (+50)</div>
+          </div>
+        </div>
+
+        <!-- Panel exclusivo de Racer: Barra de Nitro y Escudo -->
+        <div id="racerExtras" class="extras-box hidden">
+          <div class="meter-group">
+            <div class="meter-label">
+              <span>⚡ NITRO BOOST</span>
+              <span id="nitroPercent">100%</span>
+            </div>
+            <div class="meter-track">
+              <div id="nitroBar" class="meter-fill cyan" style="width: 100%"></div>
+            </div>
+          </div>
+          <div class="meter-group">
+            <div class="meter-label">
+              <span>🛡️ INTEGRIDAD CHASIS</span>
+              <span id="shieldPercent">3 / 3</span>
+            </div>
+            <div class="meter-track">
+              <div id="shieldBar" class="meter-fill green" style="width: 100%"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="action-buttons">
+          <button id="startPauseBtn" class="btn-primary">▶ INICIAR PARTIDA</button>
+          <button id="restartBtn" class="btn-secondary">↺ REINICIAR</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Escenario Central del Juego -->
+    <section class="stage-container">
+      <div class="canvas-frame">
+        <canvas id="gameCanvas" width="420" height="640"></canvas>
+
+        <!-- Overlay de Inicio / Pausa / Game Over -->
+        <div id="canvasOverlay" class="canvas-overlay">
+          <div class="overlay-badge" id="overlayBadge">LISTO PARA JUGAR</div>
+          <h3 id="overlayTitle">TETRIS CYBER BLOCKS</h3>
+          <p id="overlaySubtitle">Pulsa el botón o presiona <kbd>ENTER</kbd> para comenzar</p>
+          <button id="overlayActionBtn" class="btn-glow">JUGAR AHORA</button>
+        </div>
+      </div>
+
+      <!-- Controles Táctiles / en Pantalla para Móvil o Ratón -->
+      <div class="touch-controls" aria-label="Controles en pantalla">
+        <div class="dpad">
+          <button class="touch-btn" data-key="ArrowLeft" title="Izquierda">◀</button>
+          <div class="dpad-vertical">
+            <button class="touch-btn" data-key="ArrowUp" title="Arriba / Rotar">▲</button>
+            <button class="touch-btn" data-key="ArrowDown" title="Abajo / Frenar">▼</button>
+          </div>
+          <button class="touch-btn" data-key="ArrowRight" title="Derecha">▶</button>
+        </div>
+        <div class="action-pad">
+          <button class="touch-btn action-space" data-key="Space" title="Caída rápida / Nitro">
+            ESPACIO / ACCIÓN
+          </button>
+          <button class="touch-btn action-hold" data-key="KeyC" title="Guardar pieza">
+            C / EXTRA
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Panel Derecho: Controles y Récords Globales -->
+    <aside class="side-panel right-panel">
+      <div class="panel-card">
+        <div class="card-header">
+          <span class="dot magenta"></span>
+          <h2>CONTROLES</h2>
+        </div>
+
+        <ul id="controlsList" class="controls-list">
+          <li><kbd>←</kbd> <kbd>→</kbd> <span>Mover pieza</span></li>
+          <li><kbd>↑</kbd> / <kbd>W</kbd> <span>Rotar pieza</span></li>
+          <li><kbd>↓</kbd> / <kbd>S</kbd> <span>Caída suave (+1 pt)</span></li>
+          <li><kbd>ESPACIO</kbd> <span>Caída instantánea (+2/celda)</span></li>
+          <li><kbd>C</kbd> / <kbd>SHIFT</kbd> <span>Guardar pieza en reserva</span></li>
+          <li><kbd>P</kbd> <span>Pausar / Reanudar</span></li>
+        </ul>
+      </div>
+
+      <div class="panel-card">
+        <div class="card-header">
+          <span class="dot gold"></span>
+          <h2>SALÓN DE LA FAMA</h2>
+        </div>
+        <div class="leaderboard">
+          <div class="leader-item">
+            <span class="leader-game">🧱 Tetris</span>
+            <strong id="bestTetris">0</strong>
+          </div>
+          <div class="leader-item">
+            <span class="leader-game">🐍 Snake</span>
+            <strong id="bestSnake">0</strong>
+          </div>
+          <div class="leader-item">
+            <span class="leader-game">🏎️ Turbo 2D</span>
+            <strong id="bestRacer">0</strong>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
