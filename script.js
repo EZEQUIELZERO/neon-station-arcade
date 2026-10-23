@@ -1,5 +1,5 @@
 // ============================================================================
-// NEON STATION // ARCADE OS - TETRIS · SNAKE · TURBO RACER 2D
+// SALA DE JUEGOS DE EZEQUIEL // TETRIS XL (+50%) · SNAKE · TURBO RACER 2D
 // ============================================================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -21,6 +21,8 @@ const metaLabel2El = document.getElementById('metaLabel2');
 const metaValue2El = document.getElementById('metaValue2');
 
 const tetrisExtrasEl = document.getElementById('tetrisExtras');
+const tetrisWideToggle = document.getElementById('tetrisWideToggle');
+const tetrisColsLabel = document.getElementById('tetrisColsLabel');
 const snakeExtrasEl = document.getElementById('snakeExtras');
 const racerExtrasEl = document.getElementById('racerExtras');
 const snakeWallsToggle = document.getElementById('snakeWallsToggle');
@@ -38,12 +40,169 @@ const overlayTitle = document.getElementById('overlayTitle');
 const overlaySubtitle = document.getElementById('overlaySubtitle');
 const overlayActionBtn = document.getElementById('overlayActionBtn');
 const controlsListEl = document.getElementById('controlsList');
+const leaderboardContainer = document.getElementById('leaderboardContainer');
 
-const bestTetrisEl = document.getElementById('bestTetris');
-const bestSnakeEl = document.getElementById('bestSnake');
-const bestRacerEl = document.getElementById('bestRacer');
 const soundToggleBtn = document.getElementById('soundToggle');
 const soundIconEl = document.getElementById('soundIcon');
+
+// Elementos del Modal de Bienvenida y Perfil
+const welcomeModal = document.getElementById('welcomeModal');
+const playerForm = document.getElementById('playerForm');
+const usernameInput = document.getElementById('usernameInput');
+const usernameError = document.getElementById('usernameError');
+const avatarFileInput = document.getElementById('avatarFileInput');
+const modalAvatarPreview = document.getElementById('modalAvatarPreview');
+const presetAvatarBtns = document.querySelectorAll('.preset-avatar-btn');
+const editProfileBtn = document.getElementById('editProfileBtn');
+const headerAvatar = document.getElementById('headerAvatar');
+const headerUsername = document.getElementById('headerUsername');
+
+// ============================================================================
+// GESTIÓN DE PERFIL DE USUARIO Y FOTO DE PERFIL
+// ============================================================================
+const PROFILE_STORAGE_KEY = 'ezequiel_arcade_player_profile_v1';
+
+function createEmojiAvatarDataUrl(emoji, bgColor = '#101836') {
+  const c = document.createElement('canvas');
+  c.width = 128;
+  c.height = 128;
+  const cctx = c.getContext('2d');
+
+  // Fondo circular con degradado neón
+  const grad = cctx.createLinearGradient(0, 0, 128, 128);
+  grad.addColorStop(0, bgColor);
+  grad.addColorStop(1, '#1d1138');
+  cctx.fillStyle = grad;
+  cctx.fillRect(0, 0, 128, 128);
+
+  cctx.strokeStyle = '#00f0ff';
+  cctx.lineWidth = 6;
+  cctx.strokeRect(3, 3, 122, 122);
+
+  cctx.font = '68px "Segoe UI Emoji", "Apple Color Emoji", sans-serif';
+  cctx.textAlign = 'center';
+  cctx.textBaseline = 'middle';
+  cctx.fillText(emoji, 64, 70);
+  return c.toDataURL('image/png');
+}
+
+const DEFAULT_AVATAR = createEmojiAvatarDataUrl('🤖');
+
+let currentPlayer = {
+  name: 'Jugador',
+  avatar: DEFAULT_AVATAR
+};
+
+let pendingAvatarDataUrl = DEFAULT_AVATAR;
+
+function loadSavedProfile() {
+  try {
+    const raw = localStorage.getItem(PROFILE_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.name) {
+        currentPlayer.name = parsed.name;
+        currentPlayer.avatar = parsed.avatar || DEFAULT_AVATAR;
+        pendingAvatarDataUrl = currentPlayer.avatar;
+        usernameInput.value = currentPlayer.name;
+      }
+    }
+  } catch (e) {
+    // Ignorar errores de lectura de localStorage
+  }
+  modalAvatarPreview.src = pendingAvatarDataUrl;
+  syncHeaderProfileUI();
+}
+
+function saveProfile(name, avatar) {
+  currentPlayer = {
+    name: name.trim(),
+    avatar: avatar || DEFAULT_AVATAR
+  };
+  try {
+    localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(currentPlayer));
+  } catch (e) {
+    // Si la imagen excede cuota, usar avatar por defecto
+  }
+  syncHeaderProfileUI();
+  updateLeaderboardUI();
+}
+
+function syncHeaderProfileUI() {
+  headerUsername.textContent = currentPlayer.name;
+  headerAvatar.src = currentPlayer.avatar || DEFAULT_AVATAR;
+}
+
+function isWelcomeModalOpen() {
+  return !welcomeModal.classList.contains('hidden');
+}
+
+// Selección de avatares rápidos con emojis
+presetAvatarBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    presetAvatarBtns.forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    pendingAvatarDataUrl = createEmojiAvatarDataUrl(btn.dataset.avatar);
+    modalAvatarPreview.src = pendingAvatarDataUrl;
+  });
+});
+
+// Subida de foto de perfil desde el dispositivo (recortada y optimizada a 128x128)
+avatarFileInput.addEventListener('change', e => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      const size = 128;
+      const offCanvas = document.createElement('canvas');
+      offCanvas.width = size;
+      offCanvas.height = size;
+      const octx = offCanvas.getContext('2d');
+
+      // Recorte cuadrado centrado (cover)
+      const minSide = Math.min(img.width, img.height);
+      const sx = (img.width - minSide) / 2;
+      const sy = (img.height - minSide) / 2;
+      octx.drawImage(img, sx, sy, minSide, minSide, 0, 0, size, size);
+
+      pendingAvatarDataUrl = offCanvas.toDataURL('image/jpeg', 0.84);
+      modalAvatarPreview.src = pendingAvatarDataUrl;
+      presetAvatarBtns.forEach(b => b.classList.remove('selected'));
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+// Envío del formulario de bienvenida
+playerForm.addEventListener('submit', e => {
+  e.preventDefault();
+  const cleanName = usernameInput.value.trim();
+  if (!cleanName) {
+    usernameError.classList.remove('hidden');
+    usernameInput.focus();
+    return;
+  }
+  usernameError.classList.add('hidden');
+  saveProfile(cleanName, pendingAvatarDataUrl);
+  welcomeModal.classList.add('hidden');
+  sfx.bonus();
+});
+
+// Botón para editar perfil en cualquier momento
+editProfileBtn.addEventListener('click', () => {
+  if (isRunning && !isPaused) {
+    startOrPauseGame();
+  }
+  usernameInput.value = currentPlayer.name;
+  pendingAvatarDataUrl = currentPlayer.avatar;
+  modalAvatarPreview.src = pendingAvatarDataUrl;
+  welcomeModal.classList.remove('hidden');
+  setTimeout(() => usernameInput.focus(), 50);
+});
 
 // ============================================================================
 // SINTETIZADOR DE SONIDO RETRO (Web Audio API)
@@ -117,36 +276,100 @@ soundToggleBtn.addEventListener('click', () => {
 });
 
 // ============================================================================
-// GESTIÓN DE RÉCORDS Y CONFIGURACIÓN DE JUEGOS
+// SALÓN DE LA FAMA (RÉCORDS CON NOMBRE Y FOTO DE PERFIL)
 // ============================================================================
-const STORAGE_KEYS = {
+const RECORD_KEYS = {
+  tetris: 'neon_arcade_record_tetris_v2',
+  snake: 'neon_arcade_record_snake_v2',
+  racer: 'neon_arcade_record_racer_v2'
+};
+
+const LEGACY_KEYS = {
   tetris: 'neon_arcade_best_tetris',
   snake: 'neon_arcade_best_snake',
   racer: 'neon_arcade_best_racer'
 };
 
+function getRecord(gameKey) {
+  try {
+    const raw = localStorage.getItem(RECORD_KEYS[gameKey]);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.score === 'number') {
+        return parsed;
+      }
+    }
+    const legacy = parseInt(localStorage.getItem(LEGACY_KEYS[gameKey]) || '0', 10);
+    if (legacy > 0) {
+      return { score: legacy, name: currentPlayer.name, avatar: currentPlayer.avatar };
+    }
+  } catch (e) {
+    // Fallback
+  }
+  return { score: 0, name: 'Sin récord', avatar: DEFAULT_AVATAR };
+}
+
 function getHighScore(gameKey) {
-  return parseInt(localStorage.getItem(STORAGE_KEYS[gameKey]) || '0', 10);
+  return getRecord(gameKey).score;
 }
 
 function setHighScore(gameKey, score) {
-  const current = getHighScore(gameKey);
-  if (score > current) {
-    localStorage.setItem(STORAGE_KEYS[gameKey], String(score));
+  const current = getRecord(gameKey);
+  if (score > current.score || (score > 0 && score === current.score && current.name === 'Sin récord')) {
+    const updated = {
+      score,
+      name: currentPlayer.name,
+      avatar: currentPlayer.avatar
+    };
+    try {
+      localStorage.setItem(RECORD_KEYS[gameKey], JSON.stringify(updated));
+    } catch (e) {
+      // Ignorar errores de cuota
+    }
   }
   updateLeaderboardUI();
 }
 
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, m => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[m]));
+}
+
 function updateLeaderboardUI() {
-  bestTetrisEl.textContent = getHighScore('tetris').toLocaleString();
-  bestSnakeEl.textContent = getHighScore('snake').toLocaleString();
-  bestRacerEl.textContent = getHighScore('racer').toLocaleString();
+  const items = [
+    { key: 'tetris', label: '🧱 TETRIS XL' },
+    { key: 'snake', label: '🐍 SNAKE' },
+    { key: 'racer', label: '🏎️ TURBO 2D' }
+  ];
+
+  leaderboardContainer.innerHTML = items.map(item => {
+    const rec = getRecord(item.key);
+    const displayUser = rec.score > 0 ? escapeHtml(rec.name) : 'Vacante';
+    const displayAvatar = rec.score > 0 ? (rec.avatar || DEFAULT_AVATAR) : DEFAULT_AVATAR;
+    return `
+      <div class="leader-item">
+        <div class="leader-left">
+          <img src="${displayAvatar}" alt="${displayUser}" class="leader-avatar" />
+          <div class="leader-meta">
+            <span class="leader-game">${item.label}</span>
+            <span class="leader-user">${displayUser}</span>
+          </div>
+        </div>
+        <strong class="leader-score">${rec.score.toLocaleString()}</strong>
+      </div>
+    `;
+  }).join('');
 }
 
 const GAME_META = {
   tetris: {
-    title: 'TETRIS // CYBER BLOCKS',
-    desc: 'Encaja los tetrominós, usa la pieza en reserva y encadena líneas para multiplicar tu puntuación.',
+    title: 'TETRIS // MODO ANCHO +50%',
+    desc: 'Tablero expandido un 50% más ancho (15 columnas) para estrategias masivas, o cámbialo al clásico de 10 columnas.',
     meta1: 'NIVEL',
     meta2: 'LÍNEAS',
     controls: [
@@ -185,14 +408,12 @@ const GAME_META = {
 };
 
 // ============================================================================
-// JUEGO 1: TETRIS (CYBER BLOCKS)
+// JUEGO 1: TETRIS (CON MODO ANCHO +50% DE 15 COLUMNAS)
 // ============================================================================
 class TetrisGame {
   constructor() {
-    this.cols = 10;
     this.rows = 20;
     this.cellSize = 30;
-    this.offsetX = 60;
     this.offsetY = 20;
 
     this.shapes = {
@@ -208,7 +429,21 @@ class TetrisGame {
     this.reset();
   }
 
+  applyBoardWidth() {
+    // 10 columnas clásicas vs 15 columnas (+50% más ancho)
+    const isWide = tetrisWideToggle ? tetrisWideToggle.checked : true;
+    this.cols = isWide ? 15 : 10;
+    this.offsetX = Math.floor((canvas.width - this.cols * this.cellSize) / 2);
+
+    if (tetrisColsLabel) {
+      tetrisColsLabel.textContent = isWide
+        ? '15 columnas activas (+50% ancho)'
+        : '10 columnas (Modo Clásico)';
+    }
+  }
+
   reset() {
+    this.applyBoardWidth();
     this.grid = Array.from({ length: this.rows }, () => Array(this.cols).fill(null));
     this.score = 0;
     this.lines = 0;
@@ -369,10 +604,9 @@ class TetrisGame {
     let cleared = 0;
     for (let r = this.rows - 1; r >= 0; r--) {
       if (this.grid[r].every(cell => cell !== null)) {
-        // Crear partículas en la fila eliminada
         for (let c = 0; c < this.cols; c++) {
           const color = this.grid[r][c];
-          for (let i = 0; i < 4; i++) {
+          for (let i = 0; i < 3; i++) {
             this.particles.push({
               x: this.offsetX + c * this.cellSize + 15,
               y: this.offsetY + r * this.cellSize + 15,
@@ -393,8 +627,10 @@ class TetrisGame {
 
     if (cleared > 0) {
       sfx.clear();
+      // Bonificación extra en modo ancho (+50%) por completar filas de 15 bloques
+      const widthBonus = this.cols === 15 ? 1.5 : 1;
       const linePoints = [0, 100, 300, 500, 800];
-      this.score += (linePoints[cleared] || 1000) * this.level;
+      this.score += Math.round((linePoints[cleared] || 1000) * this.level * widthBonus);
       this.lines += cleared;
       this.level = Math.floor(this.lines / 10) + 1;
       this.dropInterval = Math.max(110, 850 - (this.level - 1) * 68);
@@ -423,7 +659,6 @@ class TetrisGame {
       }
     }
 
-    // Actualizar partículas
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
       p.x += p.vx;
@@ -449,7 +684,6 @@ class TetrisGame {
       context.shadowBlur = 8;
       context.fillRect(x + 1, y + 1, size - 2, size - 2);
 
-      // Brillo interior biselado
       context.shadowBlur = 0;
       context.fillStyle = 'rgba(255, 255, 255, 0.28)';
       context.fillRect(x + 3, y + 3, size - 6, 4);
@@ -488,7 +722,7 @@ class TetrisGame {
     const boardW = this.cols * this.cellSize;
     const boardH = this.rows * this.cellSize;
 
-    // Marco exterior del tablero Tetris
+    // Marco exterior del tablero Tetris (450px en modo +50%, 300px en clásico)
     ctx.save();
     ctx.fillStyle = '#080c1e';
     ctx.strokeStyle = 'rgba(0, 240, 255, 0.45)';
@@ -538,7 +772,6 @@ class TetrisGame {
       for (let r = 0; r < matrix.length; r++) {
         for (let c = 0; c < matrix[r].length; c++) {
           if (matrix[r][c]) {
-            // Sombra fantasma
             this.drawBlock(
               ctx,
               this.offsetX + (x + c) * this.cellSize,
@@ -548,7 +781,6 @@ class TetrisGame {
               1,
               true
             );
-            // Bloque activo
             this.drawBlock(
               ctx,
               this.offsetX + (x + c) * this.cellSize,
@@ -587,10 +819,10 @@ class TetrisGame {
 // ============================================================================
 class SnakeGame {
   constructor() {
-    this.cols = 20;
+    this.cols = 22;
     this.rows = 30;
     this.cellSize = 20;
-    this.offsetX = 10;
+    this.offsetX = Math.floor((canvas.width - this.cols * this.cellSize) / 2);
     this.offsetY = 20;
     this.reset();
   }
@@ -631,7 +863,6 @@ class SnakeGame {
       this.food = freeCells[Math.floor(Math.random() * freeCells.length)];
     }
 
-    // 28% de probabilidad de generar una estrella dorada con tiempo limitado
     if (!this.bonusFood && Math.random() < 0.28 && freeCells.length > 1) {
       const pick = freeCells[Math.floor(Math.random() * freeCells.length)];
       if (pick.x !== this.food.x || pick.y !== this.food.y) {
@@ -731,7 +962,6 @@ class SnakeGame {
       nextY = (nextY + this.rows) % this.rows;
     }
 
-    // Colisión con el propio cuerpo
     if (this.snake.some((seg, idx) => idx !== this.snake.length - 1 && seg.x === nextX && seg.y === nextY)) {
       this.die();
       return;
@@ -769,7 +999,6 @@ class SnakeGame {
     const boardW = this.cols * this.cellSize;
     const boardH = this.rows * this.cellSize;
 
-    // Fondo y borde(s)
     ctx.save();
     ctx.fillStyle = '#070b18';
     ctx.fillRect(this.offsetX, this.offsetY, boardW, boardH);
@@ -782,7 +1011,6 @@ class SnakeGame {
     ctx.strokeRect(this.offsetX - 1, this.offsetY - 1, boardW + 2, boardH + 2);
     ctx.setLineDash([]);
 
-    // Cuadrícula tenue
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
     ctx.lineWidth = 1;
     for (let c = 1; c < this.cols; c++) {
@@ -801,7 +1029,6 @@ class SnakeGame {
     }
     ctx.restore();
 
-    // Dibujar Manzana Neón
     if (this.food) {
       const fx = this.offsetX + this.food.x * this.cellSize + this.cellSize / 2;
       const fy = this.offsetY + this.food.y * this.cellSize + this.cellSize / 2;
@@ -815,7 +1042,6 @@ class SnakeGame {
       ctx.restore();
     }
 
-    // Dibujar Estrella Dorada de Bonus
     if (this.bonusFood) {
       const bx = this.offsetX + this.bonusFood.x * this.cellSize + this.cellSize / 2;
       const by = this.offsetY + this.bonusFood.y * this.cellSize + this.cellSize / 2;
@@ -827,7 +1053,6 @@ class SnakeGame {
       ctx.arc(bx, by, this.cellSize * 0.46, 0, Math.PI * 2);
       ctx.fill();
 
-      // Barra de tiempo restante sobre el bonus
       const ratio = Math.max(0, this.bonusFood.timer / this.bonusFood.maxTimer);
       ctx.fillStyle = 'rgba(0,0,0,0.6)';
       ctx.fillRect(bx - 10, by - 14, 20, 4);
@@ -836,7 +1061,6 @@ class SnakeGame {
       ctx.restore();
     }
 
-    // Dibujar Serpiente
     this.snake.forEach((seg, index) => {
       const sx = this.offsetX + seg.x * this.cellSize;
       const sy = this.offsetY + seg.y * this.cellSize;
@@ -853,7 +1077,6 @@ class SnakeGame {
       ctx.roundRect(sx + 1.5, sy + 1.5, this.cellSize - 3, this.cellSize - 3, isHead ? 6 : 4);
       ctx.fill();
 
-      // Ojos de la cabeza
       if (isHead) {
         ctx.fillStyle = '#040814';
         const eyeOffsetX = this.dir.x === 0 ? 4 : (this.dir.x > 0 ? 12 : 5);
@@ -872,7 +1095,6 @@ class SnakeGame {
       ctx.restore();
     });
 
-    // Partículas
     for (const p of this.particles) {
       ctx.save();
       ctx.globalAlpha = Math.max(0, p.alpha);
@@ -900,8 +1122,8 @@ class SnakeGame {
 // ============================================================================
 class RacerGame {
   constructor() {
-    this.roadLeft = 65;
-    this.roadWidth = 290;
+    this.roadWidth = 320;
+    this.roadLeft = Math.floor((canvas.width - this.roadWidth) / 2);
     this.roadRight = this.roadLeft + this.roadWidth;
     this.lanes = 4;
     this.laneWidth = this.roadWidth / this.lanes;
@@ -971,7 +1193,6 @@ class RacerGame {
     const spec = types[Math.floor(Math.random() * types.length)];
     const x = this.roadLeft + lane * this.laneWidth + (this.laneWidth - spec.w) / 2;
 
-    // Evitar solapamiento inmediato al generar
     const tooClose = this.enemies.some(e => Math.abs(e.y - (-110)) < 130 && Math.abs(e.x - x) < 45);
     if (tooClose) return;
 
@@ -1010,7 +1231,6 @@ class RacerGame {
       this.player.invulnerableTimer -= dt;
     }
 
-    // Control de velocidad y Nitro
     const usingNitro = this.keys.nitro && this.nitro > 1;
     const targetSpeed = usingNitro
       ? 760
@@ -1024,7 +1244,6 @@ class RacerGame {
 
     if (usingNitro) {
       this.nitro = Math.max(0, this.nitro - 34 * sec);
-      // Llamas azules del escape
       for (let i = 0; i < 2; i++) {
         this.particles.push({
           x: this.player.x + 10 + Math.random() * 20,
@@ -1040,8 +1259,7 @@ class RacerGame {
       this.nitro = Math.min(100, this.nitro + 11 * sec);
     }
 
-    // Dirección horizontal suave
-    const steerSpeed = 295;
+    const steerSpeed = 310;
     if (this.keys.left) this.player.x -= steerSpeed * sec;
     if (this.keys.right) this.player.x += steerSpeed * sec;
     this.player.x = Math.max(
@@ -1049,12 +1267,10 @@ class RacerGame {
       Math.min(this.roadRight - this.player.w - 6, this.player.x)
     );
 
-    // Avance de carretera y puntuación
     this.roadOffset = (this.roadOffset + this.player.speed * sec) % 60;
     this.distance += (this.player.speed * sec) / 120;
     this.score += Math.round((this.player.speed * sec) * (usingNitro ? 0.14 : 0.08));
 
-    // Escenario lateral (farolas / árboles neón)
     for (const item of this.scenery) {
       item.y += this.player.speed * sec;
       if (item.y > canvas.height + 30) {
@@ -1062,7 +1278,6 @@ class RacerGame {
       }
     }
 
-    // Generación de tráfico y monedas
     this.spawnTimer += dt;
     const spawnInterval = Math.max(420, 980 - this.distance * 10);
     if (this.spawnTimer >= spawnInterval) {
@@ -1076,13 +1291,11 @@ class RacerGame {
       this.spawnPickup();
     }
 
-    // Actualizar enemigos y colisiones
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
       const relSpeed = this.player.speed - e.speed;
       e.y += relSpeed * sec;
 
-      // Detectar adelantamiento al límite (Near Miss)
       if (!e.nearMissed && e.y > this.player.y && e.y - this.player.y < 60) {
         const horizGap = Math.abs((this.player.x + this.player.w / 2) - (e.x + e.w / 2));
         if (horizGap < (this.player.w + e.w) / 2 + 16) {
@@ -1094,7 +1307,6 @@ class RacerGame {
         }
       }
 
-      // Colisión AABB
       if (
         this.player.invulnerableTimer <= 0 &&
         this.player.x < e.x + e.w - 4 &&
@@ -1124,7 +1336,6 @@ class RacerGame {
       }
     }
 
-    // Actualizar coleccionables
     for (let i = this.pickups.length - 1; i >= 0; i--) {
       const pk = this.pickups[i];
       pk.y += (this.player.speed * 0.75) * sec;
@@ -1153,7 +1364,6 @@ class RacerGame {
       }
     }
 
-    // Partículas y textos flotantes
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
       p.x += p.vx;
@@ -1190,35 +1400,29 @@ class RacerGame {
 
   drawCar(x, y, w, h, bodyColor, isPlayer = false) {
     ctx.save();
-    // Sombra y resplandor
     ctx.shadowColor = bodyColor;
     ctx.shadowBlur = isPlayer ? 16 : 10;
 
-    // Ruedas
     ctx.fillStyle = '#05070f';
     ctx.fillRect(x - 3, y + 10, 4, 15);
     ctx.fillRect(x + w - 1, y + 10, 4, 15);
     ctx.fillRect(x - 3, y + h - 25, 4, 15);
     ctx.fillRect(x + w - 1, y + h - 25, 4, 15);
 
-    // Carrocería principal
     ctx.fillStyle = bodyColor;
     ctx.beginPath();
     ctx.roundRect(x, y, w, h, 9);
     ctx.fill();
 
-    // Parabrisas / cabina
     ctx.shadowBlur = 0;
     ctx.fillStyle = '#091024';
     ctx.beginPath();
     ctx.roundRect(x + 6, y + h * 0.24, w - 12, h * 0.44, 5);
     ctx.fill();
 
-    // Franja deportiva central
     ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
     ctx.fillRect(x + w / 2 - 2, y + 4, 4, h - 8);
 
-    // Faros delanteros
     ctx.fillStyle = '#e0fbfc';
     ctx.fillRect(x + 5, y + 2, 7, 4);
     ctx.fillRect(x + w - 12, y + 2, 7, 4);
@@ -1228,13 +1432,11 @@ class RacerGame {
   draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Césped / arcén oscuro
     ctx.fillStyle = '#050814';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Luces decorativas al costado de la autopista
     for (const item of this.scenery) {
-      const sx = item.side === 'left' ? 28 : canvas.width - 28;
+      const sx = item.side === 'left' ? 35 : canvas.width - 35;
       ctx.save();
       ctx.fillStyle = '#00f0ff';
       ctx.shadowColor = '#00f0ff';
@@ -1245,11 +1447,9 @@ class RacerGame {
       ctx.restore();
     }
 
-    // Asfalto de la autopista
     ctx.fillStyle = '#0d1326';
     ctx.fillRect(this.roadLeft, 0, this.roadWidth, canvas.height);
 
-    // Bordillos animados laterales
     const curbH = 30;
     for (let y = -curbH + (this.roadOffset % (curbH * 2)); y < canvas.height; y += curbH) {
       const isAlt = Math.floor((y - this.roadOffset) / curbH) % 2 === 0;
@@ -1258,7 +1458,6 @@ class RacerGame {
       ctx.fillRect(this.roadRight, y, 8, curbH);
     }
 
-    // Líneas divisorias de carriles
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
     ctx.lineWidth = 3;
     ctx.setLineDash([28, 32]);
@@ -1272,7 +1471,6 @@ class RacerGame {
     }
     ctx.setLineDash([]);
 
-    // Coleccionables (Monedas y Escudos)
     for (const pk of this.pickups) {
       ctx.save();
       const color = pk.type === 'coin' ? '#ffbe0b' : '#00f59b';
@@ -1291,12 +1489,10 @@ class RacerGame {
       ctx.restore();
     }
 
-    // Vehículos de tráfico
     for (const e of this.enemies) {
       this.drawCar(e.x, e.y, e.w, e.h, e.color, false);
     }
 
-    // Partículas (Nitro y choques)
     for (const p of this.particles) {
       ctx.save();
       ctx.globalAlpha = Math.max(0, p.alpha);
@@ -1309,13 +1505,11 @@ class RacerGame {
       ctx.restore();
     }
 
-    // Vehículo del jugador (parpadea si es invulnerable tras un choque)
     const blink = this.player.invulnerableTimer > 0 && Math.floor(this.player.invulnerableTimer / 90) % 2 === 0;
     if (!blink) {
       this.drawCar(this.player.x, this.player.y, this.player.w, this.player.h, '#00f0ff', true);
     }
 
-    // Textos flotantes de bonificación
     for (const ft of this.floatingTexts) {
       ctx.save();
       ctx.globalAlpha = Math.max(0, ft.alpha);
@@ -1358,6 +1552,23 @@ let activeGameKey = 'tetris';
 let isRunning = false;
 let isPaused = false;
 let lastTime = performance.now();
+
+// Selector de ancho de Tetris (+50% = 15 columnas vs 10 columnas)
+if (tetrisWideToggle) {
+  tetrisWideToggle.addEventListener('change', () => {
+    const isWide = tetrisWideToggle.checked;
+    GAME_META.tetris.title = isWide ? 'TETRIS // MODO ANCHO +50%' : 'TETRIS // MODO CLÁSICO';
+    if (activeGameKey === 'tetris') {
+      gameTitleEl.textContent = GAME_META.tetris.title;
+      isRunning = false;
+      isPaused = false;
+      games.tetris.reset();
+      games.tetris.draw();
+      showOverlay('MODO ACTUALIZADO', GAME_META.tetris.title, 'Pulsa el botón o presiona ENTER para comenzar', 'JUGAR AHORA');
+      startPauseBtn.textContent = '▶ INICIAR PARTIDA';
+    }
+  });
+}
 
 function switchGame(gameKey) {
   activeGameKey = gameKey;
@@ -1402,6 +1613,7 @@ function hideOverlay() {
 }
 
 function startOrPauseGame() {
+  if (isWelcomeModalOpen()) return;
   const current = games[activeGameKey];
   if (current.gameOver) {
     current.reset();
@@ -1429,6 +1641,7 @@ function startOrPauseGame() {
 }
 
 function restartActiveGame() {
+  if (isWelcomeModalOpen()) return;
   const current = games[activeGameKey];
   current.reset();
   isRunning = true;
@@ -1443,7 +1656,7 @@ function triggerGameOver(finalScore) {
   startPauseBtn.textContent = '▶ NUEVA PARTIDA';
   showOverlay(
     'FIN DE LA PARTIDA',
-    `PUNTUACIÓN: ${finalScore.toLocaleString()}`,
+    `${currentPlayer.name}: ${finalScore.toLocaleString()} PTS`,
     '¿Listo para superar tu récord en el Salón de la Fama?',
     'JUGAR DE NUEVO'
   );
@@ -1458,8 +1671,12 @@ startPauseBtn.addEventListener('click', startOrPauseGame);
 overlayActionBtn.addEventListener('click', startOrPauseGame);
 restartBtn.addEventListener('click', restartActiveGame);
 
-// Eventos de teclado
+// Eventos de teclado (ignorados mientras el modal de bienvenida o el input estén activos)
 window.addEventListener('keydown', e => {
+  if (isWelcomeModalOpen() || document.activeElement === usernameInput) {
+    return;
+  }
+
   const blockedKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'];
   if (blockedKeys.includes(e.code)) {
     e.preventDefault();
@@ -1481,6 +1698,7 @@ window.addEventListener('keydown', e => {
 });
 
 window.addEventListener('keyup', e => {
+  if (isWelcomeModalOpen()) return;
   const current = games[activeGameKey];
   if (current.handleKeyUp) {
     current.handleKeyUp(e.code);
@@ -1492,6 +1710,7 @@ document.querySelectorAll('.touch-btn').forEach(btn => {
   const key = btn.dataset.key;
   const press = e => {
     e.preventDefault();
+    if (isWelcomeModalOpen()) return;
     if (!isRunning || isPaused) {
       startOrPauseGame();
       return;
@@ -1500,6 +1719,7 @@ document.querySelectorAll('.touch-btn').forEach(btn => {
   };
   const release = e => {
     e.preventDefault();
+    if (isWelcomeModalOpen()) return;
     const current = games[activeGameKey];
     if (current.handleKeyUp) current.handleKeyUp(key);
   };
@@ -1517,7 +1737,7 @@ function gameLoop(now) {
   lastTime = now;
 
   const current = games[activeGameKey];
-  if (isRunning && !isPaused) {
+  if (isRunning && !isPaused && !isWelcomeModalOpen()) {
     current.update(dt);
   }
   current.draw();
@@ -1526,6 +1746,7 @@ function gameLoop(now) {
 }
 
 // Inicialización
+loadSavedProfile();
 updateLeaderboardUI();
 switchGame('tetris');
 requestAnimationFrame(gameLoop);

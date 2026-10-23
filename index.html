@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NEON ARCADE // Tetris · Snake · Turbo Racer 2D</title>
+  <title>Sala de Juegos de Ezequiel // Tetris XL · Snake · Turbo Racer 2D</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
@@ -14,9 +14,70 @@
   <div class="bg-glow bg-glow-1"></div>
   <div class="bg-glow bg-glow-2"></div>
 
+  <!-- MODAL DE BIENVENIDA Y REGISTRO DE JUGADOR -->
+  <div id="welcomeModal" class="welcome-modal-backdrop">
+    <div class="welcome-modal" role="dialog" aria-labelledby="welcomeHeading" aria-modal="true">
+      <div class="welcome-badge">🕹️ SALA ARCADE OFICIAL</div>
+      <h2 id="welcomeHeading" class="welcome-title">Bienvenidos a la sala de Juegos de Ezequiel</h2>
+
+      <div class="instagram-banner">
+        <span>📩 Para recomendar juegos enviar mensaje a:</span>
+        <a
+          href="https://www.instagram.com/ezekyel_7?vrfl=MTA0bzFkNW1mcmhlaA=="
+          target="_blank"
+          rel="noopener noreferrer"
+          class="ig-link"
+        >
+          📸 https://www.instagram.com/ezekyel_7?vrfl=MTA0bzFkNW1mcmhlaA==
+        </a>
+      </div>
+
+      <form id="playerForm" class="player-form">
+        <div class="avatar-picker-section">
+          <div class="avatar-preview-wrapper">
+            <img id="modalAvatarPreview" src="" alt="Foto de perfil" class="avatar-preview" />
+            <label for="avatarFileInput" class="avatar-upload-btn" title="Subir foto desde tu dispositivo">
+              📷 Subir foto
+            </label>
+            <input type="file" id="avatarFileInput" accept="image/*" hidden />
+          </div>
+
+          <div class="preset-avatars-group">
+            <span class="field-label">O elige un avatar rápido:</span>
+            <div class="preset-avatars" id="presetAvatars">
+              <button type="button" class="preset-avatar-btn" data-avatar="🤖" title="Cyber Bot">🤖</button>
+              <button type="button" class="preset-avatar-btn" data-avatar="👾" title="Alien Retro">👾</button>
+              <button type="button" class="preset-avatar-btn" data-avatar="🦊" title="Neon Fox">🦊</button>
+              <button type="button" class="preset-avatar-btn" data-avatar="🏎️" title="Piloto Turbo">🏎️</button>
+              <button type="button" class="preset-avatar-btn" data-avatar="⚡" title="Electro">⚡</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="input-group">
+          <label for="usernameInput" class="field-label">NOMBRE DE USUARIO (Para el Salón de la Fama) *</label>
+          <input
+            type="text"
+            id="usernameInput"
+            class="username-input"
+            placeholder="Ej: Ezequiel_Pro"
+            maxlength="20"
+            required
+            autocomplete="nickname"
+          />
+          <small id="usernameError" class="input-error hidden">Por favor, ingresa tu nombre de usuario para continuar.</small>
+        </div>
+
+        <button type="submit" class="btn-enter-arcade">
+          🚀 ENTRAR A LA SALA DE JUEGOS
+        </button>
+      </form>
+    </div>
+  </div>
+
   <header class="topbar">
     <div class="brand">
-      <span class="brand-badge">ARCADE OS</span>
+      <span class="brand-badge">EZEQUIEL ARCADE</span>
       <h1>NEON<span>STATION</span></h1>
     </div>
 
@@ -24,8 +85,8 @@
       <button class="tab-btn active" data-game="tetris">
         <span class="tab-icon">🧱</span>
         <span class="tab-text">
-          <strong>TETRIS</strong>
-          <small>Cyber Blocks</small>
+          <strong>TETRIS XL</strong>
+          <small>Ancho +50%</small>
         </span>
       </button>
       <button class="tab-btn" data-game="snake">
@@ -45,6 +106,16 @@
     </nav>
 
     <div class="header-actions">
+      <!-- Chip del jugador activo -->
+      <button id="editProfileBtn" class="player-chip" title="Cambiar usuario o foto de perfil">
+        <img id="headerAvatar" src="" alt="Avatar" class="chip-avatar" />
+        <div class="chip-info">
+          <small>JUGADOR</small>
+          <strong id="headerUsername">Invitado</strong>
+        </div>
+        <span class="chip-edit">✏️</span>
+      </button>
+
       <button id="soundToggle" class="icon-btn" title="Activar/Desactivar sonido FX">
         <span id="soundIcon">🔊</span>
         <span class="btn-label">SFX ON</span>
@@ -58,10 +129,10 @@
       <div class="panel-card">
         <div class="card-header">
           <span class="dot cyan"></span>
-          <h2 id="gameTitle">TETRIS // CYBER BLOCKS</h2>
+          <h2 id="gameTitle">TETRIS // MODO ANCHO +50%</h2>
         </div>
         <p id="gameDesc" class="game-desc">
-          Encaja los tetrominós, usa la pieza en reserva y encadena líneas para multiplicar tu puntuación.
+          Tablero expandido un 50% más ancho (15 columnas) para estrategias masivas, o cámbialo al clásico de 10 columnas cuando quieras.
         </p>
 
         <div class="stats-grid">
@@ -83,15 +154,28 @@
           </div>
         </div>
 
-        <!-- Panel exclusivo de Tetris: Siguiente y Reserva -->
+        <!-- Panel exclusivo de Tetris: Selector Ancho +50% + Siguiente y Reserva -->
         <div id="tetrisExtras" class="extras-box">
-          <div class="mini-preview">
-            <span>SIGUIENTE</span>
-            <canvas id="nextCanvas" width="110" height="90"></canvas>
+          <div class="option-row tetris-mode-row">
+            <div>
+              <strong class="mode-title">Tablero Ancho (+50%)</strong>
+              <small id="tetrisColsLabel" class="mode-sub">15 columnas activas</small>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="tetrisWideToggle" checked />
+              <span class="slider"></span>
+            </label>
           </div>
-          <div class="mini-preview">
-            <span>RESERVA (C)</span>
-            <canvas id="holdCanvas" width="110" height="90"></canvas>
+
+          <div class="tetris-previews-grid">
+            <div class="mini-preview">
+              <span>SIGUIENTE</span>
+              <canvas id="nextCanvas" width="110" height="90"></canvas>
+            </div>
+            <div class="mini-preview">
+              <span>RESERVA (C)</span>
+              <canvas id="holdCanvas" width="110" height="90"></canvas>
+            </div>
           </div>
         </div>
 
@@ -137,17 +221,34 @@
           <button id="restartBtn" class="btn-secondary">↺ REINICIAR</button>
         </div>
       </div>
+
+      <!-- Tarjeta de Recomendaciones Instagram -->
+      <div class="panel-card ig-card">
+        <div class="card-header">
+          <span class="dot magenta"></span>
+          <h2>¿SUGERENCIAS DE JUEGOS?</h2>
+        </div>
+        <p class="ig-card-text">Para recomendar juegos enviar mensaje a:</p>
+        <a
+          href="https://www.instagram.com/ezekyel_7?vrfl=MTA0bzFkNW1mcmhlaA=="
+          target="_blank"
+          rel="noopener noreferrer"
+          class="ig-card-btn"
+        >
+          📸 @ezekyel_7 en Instagram
+        </a>
+      </div>
     </aside>
 
-    <!-- Escenario Central del Juego -->
+    <!-- Escenario Central del Juego (Ampliado a 490px para alojar el Tetris +50% más ancho) -->
     <section class="stage-container">
       <div class="canvas-frame">
-        <canvas id="gameCanvas" width="420" height="640"></canvas>
+        <canvas id="gameCanvas" width="490" height="640"></canvas>
 
         <!-- Overlay de Inicio / Pausa / Game Over -->
         <div id="canvasOverlay" class="canvas-overlay">
           <div class="overlay-badge" id="overlayBadge">LISTO PARA JUGAR</div>
-          <h3 id="overlayTitle">TETRIS CYBER BLOCKS</h3>
+          <h3 id="overlayTitle">TETRIS // ANCHO +50%</h3>
           <p id="overlaySubtitle">Pulsa el botón o presiona <kbd>ENTER</kbd> para comenzar</p>
           <button id="overlayActionBtn" class="btn-glow">JUGAR AHORA</button>
         </div>
@@ -174,8 +275,20 @@
       </div>
     </section>
 
-    <!-- Panel Derecho: Controles y Récords Globales -->
+    <!-- Panel Derecho: Salón de la Fama con Fotos de Perfil y Controles -->
     <aside class="side-panel right-panel">
+      <div class="panel-card">
+        <div class="card-header">
+          <span class="dot gold"></span>
+          <h2>🏆 SALÓN DE LA FAMA</h2>
+        </div>
+        <p class="hall-subtitle">Campeones registrados en este dispositivo</p>
+
+        <div id="leaderboardContainer" class="leaderboard">
+          <!-- Renderizado dinámicamente con foto de perfil, nombre de usuario y puntaje -->
+        </div>
+      </div>
+
       <div class="panel-card">
         <div class="card-header">
           <span class="dot magenta"></span>
@@ -190,27 +303,6 @@
           <li><kbd>C</kbd> / <kbd>SHIFT</kbd> <span>Guardar pieza en reserva</span></li>
           <li><kbd>P</kbd> <span>Pausar / Reanudar</span></li>
         </ul>
-      </div>
-
-      <div class="panel-card">
-        <div class="card-header">
-          <span class="dot gold"></span>
-          <h2>SALÓN DE LA FAMA</h2>
-        </div>
-        <div class="leaderboard">
-          <div class="leader-item">
-            <span class="leader-game">🧱 Tetris</span>
-            <strong id="bestTetris">0</strong>
-          </div>
-          <div class="leader-item">
-            <span class="leader-game">🐍 Snake</span>
-            <strong id="bestSnake">0</strong>
-          </div>
-          <div class="leader-item">
-            <span class="leader-game">🏎️ Turbo 2D</span>
-            <strong id="bestRacer">0</strong>
-          </div>
-        </div>
       </div>
     </aside>
   </main>
