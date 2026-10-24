@@ -2,8 +2,8 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sala de Juegos de Ezequiel // Tetris XL · Snake · Turbo Racer 2D</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Sala de Juegos de Ezequiel // Tetris XL · Tetris Infected · Snake · Turbo 2D</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
@@ -46,8 +46,8 @@
             <span class="field-label">O elige un avatar rápido:</span>
             <div class="preset-avatars" id="presetAvatars">
               <button type="button" class="preset-avatar-btn" data-avatar="🤖" title="Cyber Bot">🤖</button>
+              <button type="button" class="preset-avatar-btn" data-avatar="🧟" title="Zombie Infected">🧟</button>
               <button type="button" class="preset-avatar-btn" data-avatar="👾" title="Alien Retro">👾</button>
-              <button type="button" class="preset-avatar-btn" data-avatar="🦊" title="Neon Fox">🦊</button>
               <button type="button" class="preset-avatar-btn" data-avatar="🏎️" title="Piloto Turbo">🏎️</button>
               <button type="button" class="preset-avatar-btn" data-avatar="⚡" title="Electro">⚡</button>
             </div>
@@ -89,6 +89,13 @@
           <small>Ancho +50%</small>
         </span>
       </button>
+      <button class="tab-btn tab-infected" data-game="infected">
+        <span class="tab-icon">☣️</span>
+        <span class="tab-text">
+          <strong>TETRIS INFECTED</strong>
+          <small>Zona Zombie</small>
+        </span>
+      </button>
       <button class="tab-btn" data-game="snake">
         <span class="tab-icon">🐍</span>
         <span class="tab-text">
@@ -128,7 +135,7 @@
     <aside class="side-panel left-panel">
       <div class="panel-card">
         <div class="card-header">
-          <span class="dot cyan"></span>
+          <span id="gameThemeDot" class="dot cyan"></span>
           <h2 id="gameTitle">TETRIS // MODO ANCHO +50%</h2>
         </div>
         <p id="gameDesc" class="game-desc">
@@ -154,9 +161,9 @@
           </div>
         </div>
 
-        <!-- Panel exclusivo de Tetris: Selector Ancho +50% + Siguiente y Reserva -->
+        <!-- Panel exclusivo de Tetris / Tetris Infected: Selector Ancho +50% + Siguiente y Reserva -->
         <div id="tetrisExtras" class="extras-box">
-          <div class="option-row tetris-mode-row">
+          <div id="tetrisWideRow" class="option-row tetris-mode-row">
             <div>
               <strong class="mode-title">Tablero Ancho (+50%)</strong>
               <small id="tetrisColsLabel" class="mode-sub">15 columnas activas</small>
@@ -165,6 +172,11 @@
               <input type="checkbox" id="tetrisWideToggle" checked />
               <span class="slider"></span>
             </label>
+          </div>
+
+          <div id="infectedLegend" class="infected-legend hidden">
+            <div class="infected-badge-row">☣️ <strong>ALERTA BIO-ZOMBIE (15s - 45s)</strong></div>
+            <p>Limpia los bloques infectados antes de que el contador llegue a <strong>0s</strong> para ganar <strong>+250 pts extra</strong>. Si explotan, rompen el bloque dejando un hueco y pierdes <strong>-150 pts</strong>.</p>
           </div>
 
           <div class="tetris-previews-grid">
@@ -218,7 +230,10 @@
 
         <div class="action-buttons">
           <button id="startPauseBtn" class="btn-primary">▶ INICIAR PARTIDA</button>
-          <button id="restartBtn" class="btn-secondary">↺ REINICIAR</button>
+          <div class="secondary-actions-row">
+            <button id="dedicatedPauseBtn" class="btn-pause" title="Pausar o reanudar el juego actual (Tecla P)">⏸ PAUSA</button>
+            <button id="restartBtn" class="btn-secondary">↺ REINICIAR</button>
+          </div>
         </div>
       </div>
 
@@ -240,37 +255,77 @@
       </div>
     </aside>
 
-    <!-- Escenario Central del Juego (Ampliado a 490px para alojar el Tetris +50% más ancho) -->
-    <section class="stage-container">
-      <div class="canvas-frame">
+    <!-- Escenario Central del Juego (Con soporte de Pantalla Completa y Toques Directos) -->
+    <section id="stageContainer" class="stage-container">
+      <!-- Barra superior del escenario (Siempre visible en escritorio, celular y pantalla completa) -->
+      <div class="stage-hud-bar">
+        <div class="hud-stats">
+          <span class="hud-chip">PTS: <strong id="hudScore">0</strong></span>
+          <span class="hud-chip"><span id="hudMetaLabel">NVL</span>: <strong id="hudMetaVal">1</strong></span>
+        </div>
+        <div class="hud-buttons">
+          <button id="hudPauseBtn" class="hud-btn pause-btn" title="Pausar / Reanudar (P)">
+            ⏸ PAUSA
+          </button>
+          <button id="fullscreenBtn" class="hud-btn fullscreen-btn" title="Pantalla Completa">
+            ⛶ PANTALLA COMPLETA
+          </button>
+        </div>
+      </div>
+
+      <div id="canvasFrame" class="canvas-frame">
         <canvas id="gameCanvas" width="490" height="640"></canvas>
+
+        <!-- Guía visual sutil de zonas táctiles en pantalla -->
+        <div id="touchZonesHint" class="touch-zones-hint" aria-hidden="true">
+          <div class="tz-zone tz-top"><span>▲ ROTAR / ARRIBA</span></div>
+          <div class="tz-middle">
+            <div class="tz-zone tz-left"><span>◀ IZQ</span></div>
+            <div class="tz-zone tz-right"><span>DER ▶</span></div>
+          </div>
+          <div class="tz-zone tz-bottom"><span>▼ CAER RÁPIDO / ABAJO</span></div>
+        </div>
 
         <!-- Overlay de Inicio / Pausa / Game Over -->
         <div id="canvasOverlay" class="canvas-overlay">
           <div class="overlay-badge" id="overlayBadge">LISTO PARA JUGAR</div>
           <h3 id="overlayTitle">TETRIS // ANCHO +50%</h3>
-          <p id="overlaySubtitle">Pulsa el botón o presiona <kbd>ENTER</kbd> para comenzar</p>
-          <button id="overlayActionBtn" class="btn-glow">JUGAR AHORA</button>
+          <p id="overlaySubtitle">Pulsa el botón, presiona <kbd>ENTER</kbd> o toca las zonas de la pantalla</p>
+          <div class="overlay-btn-group">
+            <button id="overlayActionBtn" class="btn-glow">▶ JUGAR AHORA</button>
+            <button id="overlayRestartBtn" class="btn-secondary overlay-restart hidden">↺ REINICIAR PARTIDA</button>
+          </div>
         </div>
       </div>
 
-      <!-- Controles Táctiles / en Pantalla para Móvil o Ratón -->
+      <!-- Controles Táctiles Mejorados para Celular y Escritorio -->
       <div class="touch-controls" aria-label="Controles en pantalla">
-        <div class="dpad">
-          <button class="touch-btn" data-key="ArrowLeft" title="Izquierda">◀</button>
-          <div class="dpad-vertical">
-            <button class="touch-btn" data-key="ArrowUp" title="Arriba / Rotar">▲</button>
-            <button class="touch-btn" data-key="ArrowDown" title="Abajo / Frenar">▼</button>
-          </div>
-          <button class="touch-btn" data-key="ArrowRight" title="Derecha">▶</button>
+        <div class="touch-top-hint">
+          📱 <strong>Toque directo en pantalla activo:</strong> Arriba (Rotar) · Izq/Der (Mover) · Abajo (Caer rápido)
         </div>
-        <div class="action-pad">
-          <button class="touch-btn action-space" data-key="Space" title="Caída rápida / Nitro">
-            ESPACIO / ACCIÓN
-          </button>
-          <button class="touch-btn action-hold" data-key="KeyC" title="Guardar pieza">
-            C / EXTRA
-          </button>
+        <div class="touch-pad-grid">
+          <div class="dpad-modern">
+            <button class="touch-btn btn-left" data-key="ArrowLeft" title="Izquierda">◀ IZQ</button>
+            <div class="dpad-center-col">
+              <button class="touch-btn btn-up" data-key="ArrowUp" title="Arriba / Rotar">▲ ROTAR</button>
+              <button class="touch-btn btn-down" data-key="ArrowDown" title="Abajo / Caída suave">▼ BAJAR</button>
+            </div>
+            <button class="touch-btn btn-right" data-key="ArrowRight" title="Derecha">DER ▶</button>
+          </div>
+
+          <div class="action-pad-modern">
+            <button class="touch-btn action-space" data-key="Space" title="Caída rápida / Nitro">
+              ⚡ CAER RÁPIDO / NITRO
+            </button>
+            <div class="action-sub-row">
+              <button class="touch-btn action-hold" data-key="KeyC" title="Guardar pieza en reserva">
+                📦 RESERVA (C)
+              </button>
+              <button id="mobilePauseBtn" class="touch-btn action-pause" title="Pausar partida">
+                ⏸ PAUSA
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -292,7 +347,7 @@
       <div class="panel-card">
         <div class="card-header">
           <span class="dot magenta"></span>
-          <h2>CONTROLES</h2>
+          <h2>CONTROLES (PC Y CELULAR)</h2>
         </div>
 
         <ul id="controlsList" class="controls-list">

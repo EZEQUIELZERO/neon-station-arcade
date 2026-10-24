@@ -1,5 +1,5 @@
 // ============================================================================
-// SALA DE JUEGOS DE EZEQUIEL // TETRIS XL (+50%) · SNAKE · TURBO RACER 2D
+// SALA DE JUEGOS DE EZEQUIEL // TETRIS XL · TETRIS INFECTED · SNAKE · TURBO 2D
 // ============================================================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -11,6 +11,7 @@ const holdCtx = holdCanvas.getContext('2d');
 
 // Elementos del DOM
 const tabButtons = document.querySelectorAll('.tab-btn');
+const gameThemeDot = document.getElementById('gameThemeDot');
 const gameTitleEl = document.getElementById('gameTitle');
 const gameDescEl = document.getElementById('gameDesc');
 const scoreValueEl = document.getElementById('scoreValue');
@@ -20,9 +21,19 @@ const metaValue1El = document.getElementById('metaValue1');
 const metaLabel2El = document.getElementById('metaLabel2');
 const metaValue2El = document.getElementById('metaValue2');
 
+// HUD superior del escenario
+const stageContainer = document.getElementById('stageContainer');
+const canvasFrame = document.getElementById('canvasFrame');
+const hudScoreEl = document.getElementById('hudScore');
+const hudMetaLabelEl = document.getElementById('hudMetaLabel');
+const hudMetaValEl = document.getElementById('hudMetaVal');
+const hudPauseBtn = document.getElementById('hudPauseBtn');
+const fullscreenBtn = document.getElementById('fullscreenBtn');
+
 const tetrisExtrasEl = document.getElementById('tetrisExtras');
 const tetrisWideToggle = document.getElementById('tetrisWideToggle');
 const tetrisColsLabel = document.getElementById('tetrisColsLabel');
+const infectedLegendEl = document.getElementById('infectedLegend');
 const snakeExtrasEl = document.getElementById('snakeExtras');
 const racerExtrasEl = document.getElementById('racerExtras');
 const snakeWallsToggle = document.getElementById('snakeWallsToggle');
@@ -33,12 +44,15 @@ const shieldPercentEl = document.getElementById('shieldPercent');
 const shieldBarEl = document.getElementById('shieldBar');
 
 const startPauseBtn = document.getElementById('startPauseBtn');
+const dedicatedPauseBtn = document.getElementById('dedicatedPauseBtn');
+const mobilePauseBtn = document.getElementById('mobilePauseBtn');
 const restartBtn = document.getElementById('restartBtn');
 const canvasOverlay = document.getElementById('canvasOverlay');
 const overlayBadge = document.getElementById('overlayBadge');
 const overlayTitle = document.getElementById('overlayTitle');
 const overlaySubtitle = document.getElementById('overlaySubtitle');
 const overlayActionBtn = document.getElementById('overlayActionBtn');
+const overlayRestartBtn = document.getElementById('overlayRestartBtn');
 const controlsListEl = document.getElementById('controlsList');
 const leaderboardContainer = document.getElementById('leaderboardContainer');
 
@@ -57,6 +71,12 @@ const editProfileBtn = document.getElementById('editProfileBtn');
 const headerAvatar = document.getElementById('headerAvatar');
 const headerUsername = document.getElementById('headerUsername');
 
+// Zonas visuales de toque en pantalla
+const tzTop = document.querySelector('.tz-top');
+const tzBottom = document.querySelector('.tz-bottom');
+const tzLeft = document.querySelector('.tz-left');
+const tzRight = document.querySelector('.tz-right');
+
 // ============================================================================
 // GESTIÓN DE PERFIL DE USUARIO Y FOTO DE PERFIL
 // ============================================================================
@@ -68,10 +88,9 @@ function createEmojiAvatarDataUrl(emoji, bgColor = '#101836') {
   c.height = 128;
   const cctx = c.getContext('2d');
 
-  // Fondo circular con degradado neón
   const grad = cctx.createLinearGradient(0, 0, 128, 128);
   grad.addColorStop(0, bgColor);
-  grad.addColorStop(1, '#1d1138');
+  grad.addColorStop(1, '#182b19');
   cctx.fillStyle = grad;
   cctx.fillRect(0, 0, 128, 128);
 
@@ -108,7 +127,7 @@ function loadSavedProfile() {
       }
     }
   } catch (e) {
-    // Ignorar errores de lectura de localStorage
+    // Ignorar errores de localStorage
   }
   modalAvatarPreview.src = pendingAvatarDataUrl;
   syncHeaderProfileUI();
@@ -122,7 +141,7 @@ function saveProfile(name, avatar) {
   try {
     localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(currentPlayer));
   } catch (e) {
-    // Si la imagen excede cuota, usar avatar por defecto
+    // Fallback
   }
   syncHeaderProfileUI();
   updateLeaderboardUI();
@@ -137,7 +156,6 @@ function isWelcomeModalOpen() {
   return !welcomeModal.classList.contains('hidden');
 }
 
-// Selección de avatares rápidos con emojis
 presetAvatarBtns.forEach(btn => {
   btn.addEventListener('click', () => {
     presetAvatarBtns.forEach(b => b.classList.remove('selected'));
@@ -147,7 +165,6 @@ presetAvatarBtns.forEach(btn => {
   });
 });
 
-// Subida de foto de perfil desde el dispositivo (recortada y optimizada a 128x128)
 avatarFileInput.addEventListener('change', e => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
@@ -162,7 +179,6 @@ avatarFileInput.addEventListener('change', e => {
       offCanvas.height = size;
       const octx = offCanvas.getContext('2d');
 
-      // Recorte cuadrado centrado (cover)
       const minSide = Math.min(img.width, img.height);
       const sx = (img.width - minSide) / 2;
       const sy = (img.height - minSide) / 2;
@@ -177,7 +193,6 @@ avatarFileInput.addEventListener('change', e => {
   reader.readAsDataURL(file);
 });
 
-// Envío del formulario de bienvenida
 playerForm.addEventListener('submit', e => {
   e.preventDefault();
   const cleanName = usernameInput.value.trim();
@@ -192,10 +207,9 @@ playerForm.addEventListener('submit', e => {
   sfx.bonus();
 });
 
-// Botón para editar perfil en cualquier momento
 editProfileBtn.addEventListener('click', () => {
   if (isRunning && !isPaused) {
-    startOrPauseGame();
+    togglePauseOnly();
   }
   usernameInput.value = currentPlayer.name;
   pendingAvatarDataUrl = currentPlayer.avatar;
@@ -260,6 +274,10 @@ class SoundFX {
     this.tone(587, 'triangle', 0.08, 0.15);
     setTimeout(() => this.tone(880, 'triangle', 0.16, 0.16), 70);
   }
+  explode() {
+    this.tone(145, 'sawtooth', 0.22, 0.18, 42);
+    setTimeout(() => this.tone(95, 'square', 0.18, 0.15, 35), 70);
+  }
   crash() { this.tone(120, 'sawtooth', 0.28, 0.2, 40); }
   gameOver() {
     this.tone(300, 'sawtooth', 0.18, 0.15, 220);
@@ -280,6 +298,7 @@ soundToggleBtn.addEventListener('click', () => {
 // ============================================================================
 const RECORD_KEYS = {
   tetris: 'neon_arcade_record_tetris_v2',
+  infected: 'neon_arcade_record_infected_v1',
   snake: 'neon_arcade_record_snake_v2',
   racer: 'neon_arcade_record_racer_v2'
 };
@@ -299,9 +318,11 @@ function getRecord(gameKey) {
         return parsed;
       }
     }
-    const legacy = parseInt(localStorage.getItem(LEGACY_KEYS[gameKey]) || '0', 10);
-    if (legacy > 0) {
-      return { score: legacy, name: currentPlayer.name, avatar: currentPlayer.avatar };
+    if (LEGACY_KEYS[gameKey]) {
+      const legacy = parseInt(localStorage.getItem(LEGACY_KEYS[gameKey]) || '0', 10);
+      if (legacy > 0) {
+        return { score: legacy, name: currentPlayer.name, avatar: currentPlayer.avatar };
+      }
     }
   } catch (e) {
     // Fallback
@@ -343,6 +364,7 @@ function escapeHtml(str) {
 function updateLeaderboardUI() {
   const items = [
     { key: 'tetris', label: '🧱 TETRIS XL' },
+    { key: 'infected', label: '☣️ TETRIS INFECTED' },
     { key: 'snake', label: '🐍 SNAKE' },
     { key: 'racer', label: '🏎️ TURBO 2D' }
   ];
@@ -366,19 +388,41 @@ function updateLeaderboardUI() {
   }).join('');
 }
 
+function updateHUD(score, metaLabel, metaVal) {
+  hudScoreEl.textContent = score.toLocaleString();
+  hudMetaLabelEl.textContent = metaLabel;
+  hudMetaValEl.textContent = metaVal;
+}
+
 const GAME_META = {
   tetris: {
     title: 'TETRIS // MODO ANCHO +50%',
     desc: 'Tablero expandido un 50% más ancho (15 columnas) para estrategias masivas, o cámbialo al clásico de 10 columnas.',
     meta1: 'NIVEL',
     meta2: 'LÍNEAS',
+    hudLabel: 'NVL',
     controls: [
-      ['← → / A D', 'Mover pieza'],
-      ['↑ / W', 'Rotar pieza'],
+      ['← → / Toque Izq-Der', 'Mover pieza'],
+      ['↑ / W / Toque Arriba', 'Rotar pieza'],
       ['↓ / S', 'Caída suave (+1 pt)'],
-      ['ESPACIO', 'Caída instantánea'],
+      ['ESPACIO / Toque Abajo', 'Caída rápida instantánea'],
       ['C / SHIFT', 'Guardar pieza en reserva'],
-      ['P', 'Pausar / Reanudar']
+      ['P / Botón PAUSA', 'Pausar / Reanudar']
+    ]
+  },
+  infected: {
+    title: 'TETRIS INFECTED // BIO-ZOMBIE',
+    desc: '¡Brote Zombie! Los bloques infectados tienen cuenta regresiva (15s a 45s). Completa su línea para ganar puntos extra antes de que exploten, dejen un hueco y te resten puntos.',
+    meta1: 'PELIGRO',
+    meta2: 'INFECTADOS',
+    hudLabel: 'BIO-NVL',
+    controls: [
+      ['← → / Toque Izq-Der', 'Mover pieza'],
+      ['↑ / W / Toque Arriba', 'Rotar pieza'],
+      ['ESPACIO / Toque Abajo', 'Caer rápido (Hard Drop)'],
+      ['↓ / S', 'Caída suave (+1 pt)'],
+      ['C / SHIFT', 'Guardar pieza en reserva'],
+      ['P / Botón PAUSA', 'Pausar / Reanudar']
     ]
   },
   snake: {
@@ -386,11 +430,12 @@ const GAME_META = {
     desc: 'Recoge manzanas cibernéticas y estrellas doradas antes de que se agote su tiempo sin morder tu propia cola.',
     meta1: 'VELOCIDAD',
     meta2: 'LONGITUD',
+    hudLabel: 'VEL',
     controls: [
-      ['← ↑ ↓ →', 'Cambiar dirección'],
+      ['← ↑ ↓ → / Toques', 'Cambiar dirección'],
       ['W A S D', 'Control alternativo'],
       ['ESPACIO', 'Turbo sprint temporal'],
-      ['P', 'Pausar / Reanudar']
+      ['P / Botón PAUSA', 'Pausar / Reanudar']
     ]
   },
   racer: {
@@ -398,11 +443,13 @@ const GAME_META = {
     desc: 'Esquiva el tráfico a toda velocidad, realiza adelantamientos al límite, recoge monedas y activa el Nitro Boost.',
     meta1: 'VELOCIDAD',
     meta2: 'DISTANCIA',
+    hudLabel: 'KM/H',
     controls: [
-      ['← → / A D', 'Cambiar de carril / Girar'],
-      ['↑ ↓ / W S', 'Acelerar / Frenar'],
+      ['← → / Toque Izq-Der', 'Cambiar de carril / Girar'],
+      ['↑ / Toque Arriba', 'Acelerar / Nitro'],
+      ['↓ / Toque Abajo', 'Frenar'],
       ['ESPACIO / SHIFT', 'Activar NITRO BOOST'],
-      ['P', 'Pausar / Reanudar']
+      ['P / Botón PAUSA', 'Pausar / Reanudar']
     ]
   }
 };
@@ -430,7 +477,6 @@ class TetrisGame {
   }
 
   applyBoardWidth() {
-    // 10 columnas clásicas vs 15 columnas (+50% más ancho)
     const isWide = tetrisWideToggle ? tetrisWideToggle.checked : true;
     this.cols = isWide ? 15 : 10;
     this.offsetX = Math.floor((canvas.width - this.cols * this.cellSize) / 2);
@@ -627,7 +673,6 @@ class TetrisGame {
 
     if (cleared > 0) {
       sfx.clear();
-      // Bonificación extra en modo ancho (+50%) por completar filas de 15 bloques
       const widthBonus = this.cols === 15 ? 1.5 : 1;
       const linePoints = [0, 100, 300, 500, 800];
       this.score += Math.round((linePoints[cleared] || 1000) * this.level * widthBonus);
@@ -722,7 +767,6 @@ class TetrisGame {
     const boardW = this.cols * this.cellSize;
     const boardH = this.rows * this.cellSize;
 
-    // Marco exterior del tablero Tetris (450px en modo +50%, 300px en clásico)
     ctx.save();
     ctx.fillStyle = '#080c1e';
     ctx.strokeStyle = 'rgba(0, 240, 255, 0.45)';
@@ -730,7 +774,6 @@ class TetrisGame {
     ctx.fillRect(this.offsetX, this.offsetY, boardW, boardH);
     ctx.strokeRect(this.offsetX - 2, this.offsetY - 2, boardW + 4, boardH + 4);
 
-    // Rejilla interna sutil
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.045)';
     ctx.lineWidth = 1;
     for (let c = 1; c < this.cols; c++) {
@@ -749,7 +792,6 @@ class TetrisGame {
     }
     ctx.restore();
 
-    // Celdas fijadas
     for (let r = 0; r < this.rows; r++) {
       for (let c = 0; c < this.cols; c++) {
         if (this.grid[r][c]) {
@@ -764,7 +806,6 @@ class TetrisGame {
       }
     }
 
-    // Pieza fantasma y pieza actual
     if (this.piece && !this.gameOver) {
       const ghostY = this.getGhostY();
       const { matrix, x, y, color } = this.piece;
@@ -793,7 +834,6 @@ class TetrisGame {
       }
     }
 
-    // Partículas de explosión de línea
     for (const p of this.particles) {
       ctx.save();
       ctx.globalAlpha = Math.max(0, p.alpha);
@@ -811,11 +851,612 @@ class TetrisGame {
     highScoreValueEl.textContent = getHighScore('tetris').toLocaleString();
     metaValue1El.textContent = this.level;
     metaValue2El.textContent = this.lines;
+    updateHUD(this.score, 'NVL', this.level);
   }
 }
 
 // ============================================================================
-// JUEGO 2: SNAKE (NEON VIPER)
+// JUEGO 2: TETRIS INFECTED (ESTILO ZOMBIE VERDE CON CUENTA REGRESIVA 15s-45s)
+// ============================================================================
+class TetrisInfectedGame {
+  constructor() {
+    this.rows = 20;
+    this.cellSize = 30;
+    this.offsetY = 20;
+
+    // Paleta de tonos verdes estilo Bio-Zombie / Mutante
+    this.shapes = {
+      I: { matrix: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], color: '#39ff14' },
+      O: { matrix: [[1,1],[1,1]], color: '#b5e48c' },
+      T: { matrix: [[0,1,0],[1,1,1],[0,0,0]], color: '#52b788' },
+      S: { matrix: [[0,1,1],[1,1,0],[0,0,0]], color: '#70e000' },
+      Z: { matrix: [[1,1,0],[0,1,1],[0,0,0]], color: '#9ef01a' },
+      J: { matrix: [[1,0,0],[1,1,1],[0,0,0]], color: '#2dc653' },
+      L: { matrix: [[0,0,1],[1,1,1],[0,0,0]], color: '#aacc00' }
+    };
+
+    this.reset();
+  }
+
+  applyBoardWidth() {
+    const isWide = tetrisWideToggle ? tetrisWideToggle.checked : true;
+    this.cols = isWide ? 15 : 10;
+    this.offsetX = Math.floor((canvas.width - this.cols * this.cellSize) / 2);
+  }
+
+  randomInfectionDurationMs() {
+    // Aleatoriamente entre 15 segundos (15000ms) y 45 segundos (45000ms)
+    const minSec = 15;
+    const maxSec = Math.max(22, 45 - (this.level - 1) * 2);
+    const seconds = Math.floor(Math.random() * (maxSec - minSec + 1)) + minSec;
+    return seconds * 1000;
+  }
+
+  reset() {
+    this.applyBoardWidth();
+    // Cada celda del grid es null o { color, infected, timerMs, maxTimerMs }
+    this.grid = Array.from({ length: this.rows }, () => Array(this.cols).fill(null));
+    this.score = 0;
+    this.lines = 0;
+    this.level = 1;
+    this.survivalTimer = 0;
+    this.outbreakTimer = 0;
+    this.bag = [];
+    this.holdKey = null;
+    this.canHold = true;
+    this.dropCounter = 0;
+    this.dropInterval = 820;
+    this.particles = [];
+    this.floatingTexts = [];
+    this.pulseClock = 0;
+    this.gameOver = false;
+
+    this.nextKey = this.drawFromBag();
+    this.spawnPiece();
+    this.drawMiniCanvases();
+    this.syncUI();
+  }
+
+  drawFromBag() {
+    if (this.bag.length === 0) {
+      this.bag = Object.keys(this.shapes);
+      for (let i = this.bag.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [this.bag[i], this.bag[j]] = [this.bag[j], this.bag[i]];
+      }
+    }
+    return this.bag.pop();
+  }
+
+  spawnPiece(forcedKey = null) {
+    const key = forcedKey || this.nextKey;
+    if (!forcedKey) {
+      this.nextKey = this.drawFromBag();
+    }
+    const def = this.shapes[key];
+    const matrix = def.matrix.map(r => [...r]);
+
+    // Elegir si algún bloque de la pieza que cae viene infectado de fábrica
+    const infectedMap = matrix.map(r => r.map(() => null));
+    const infectChance = Math.min(0.75, 0.35 + (this.level - 1) * 0.06);
+    if (Math.random() < infectChance) {
+      const coords = [];
+      for (let r = 0; r < matrix.length; r++) {
+        for (let c = 0; c < matrix[r].length; c++) {
+          if (matrix[r][c]) coords.push([r, c]);
+        }
+      }
+      if (coords.length > 0) {
+        const [ir, ic] = coords[Math.floor(Math.random() * coords.length)];
+        const dur = this.randomInfectionDurationMs();
+        infectedMap[ir][ic] = { timerMs: dur, maxTimerMs: dur };
+      }
+    }
+
+    this.piece = {
+      key,
+      matrix,
+      infectedMap,
+      color: def.color,
+      x: Math.floor((this.cols - matrix[0].length) / 2),
+      y: 0
+    };
+    this.canHold = true;
+    this.drawMiniCanvases();
+
+    if (this.collide(this.piece.matrix, this.piece.x, this.piece.y)) {
+      this.gameOver = true;
+      sfx.gameOver();
+      triggerGameOver(this.score);
+    }
+  }
+
+  holdPiece() {
+    if (!this.canHold || this.gameOver) return;
+    sfx.rotate();
+    const currentKey = this.piece.key;
+    if (!this.holdKey) {
+      this.holdKey = currentKey;
+      this.spawnPiece();
+    } else {
+      const swapKey = this.holdKey;
+      this.holdKey = currentKey;
+      this.spawnPiece(swapKey);
+    }
+    this.canHold = false;
+    this.drawMiniCanvases();
+  }
+
+  collide(matrix, px, py) {
+    for (let r = 0; r < matrix.length; r++) {
+      for (let c = 0; c < matrix[r].length; c++) {
+        if (!matrix[r][c]) continue;
+        const nx = px + c;
+        const ny = py + r;
+        if (nx < 0 || nx >= this.cols || ny >= this.rows) return true;
+        if (ny >= 0 && this.grid[ny][nx]) return true;
+      }
+    }
+    return false;
+  }
+
+  rotateMatrix(matrix) {
+    const N = matrix.length;
+    const result = Array.from({ length: N }, () => Array(N).fill(null));
+    for (let r = 0; r < N; r++) {
+      for (let c = 0; c < N; c++) {
+        result[c][N - 1 - r] = matrix[r][c];
+      }
+    }
+    return result;
+  }
+
+  rotate() {
+    const rotated = this.rotateMatrix(this.piece.matrix);
+    const rotatedInf = this.rotateMatrix(this.piece.infectedMap);
+    const kicks = [0, -1, 1, -2, 2];
+    for (const offset of kicks) {
+      if (!this.collide(rotated, this.piece.x + offset, this.piece.y)) {
+        this.piece.matrix = rotated;
+        this.piece.infectedMap = rotatedInf;
+        this.piece.x += offset;
+        sfx.rotate();
+        return;
+      }
+    }
+  }
+
+  move(dir) {
+    if (!this.collide(this.piece.matrix, this.piece.x + dir, this.piece.y)) {
+      this.piece.x += dir;
+      sfx.move();
+    }
+  }
+
+  softDrop() {
+    if (!this.collide(this.piece.matrix, this.piece.x, this.piece.y + 1)) {
+      this.piece.y++;
+      this.score += 1;
+      this.dropCounter = 0;
+      this.syncUI();
+    } else {
+      this.lockPiece();
+    }
+  }
+
+  hardDrop() {
+    let cellsDropped = 0;
+    while (!this.collide(this.piece.matrix, this.piece.x, this.piece.y + 1)) {
+      this.piece.y++;
+      cellsDropped++;
+    }
+    this.score += cellsDropped * 2;
+    sfx.drop();
+    this.lockPiece();
+  }
+
+  getGhostY() {
+    let gy = this.piece.y;
+    while (!this.collide(this.piece.matrix, this.piece.x, gy + 1)) {
+      gy++;
+    }
+    return gy;
+  }
+
+  lockPiece() {
+    const { matrix, infectedMap, x, y, color } = this.piece;
+    for (let r = 0; r < matrix.length; r++) {
+      for (let c = 0; c < matrix[r].length; c++) {
+        if (matrix[r][c] && y + r >= 0) {
+          const inf = infectedMap[r][c];
+          this.grid[y + r][x + c] = {
+            color,
+            infected: Boolean(inf),
+            timerMs: inf ? inf.timerMs : 0,
+            maxTimerMs: inf ? inf.maxTimerMs : 0
+          };
+        }
+      }
+    }
+    this.clearLines();
+    this.spawnPiece();
+    this.syncUI();
+  }
+
+  spreadRandomInfection() {
+    // Infecta un bloque sano existente del tablero con un temporizador de 15s a 45s
+    const healthyCells = [];
+    for (let r = 0; r < this.rows; r++) {
+      for (let c = 0; c < this.cols; c++) {
+        const cell = this.grid[r][c];
+        if (cell && !cell.infected) {
+          healthyCells.push({ r, c, cell });
+        }
+      }
+    }
+    if (healthyCells.length > 0) {
+      const pick = healthyCells[Math.floor(Math.random() * healthyCells.length)];
+      const dur = this.randomInfectionDurationMs();
+      pick.cell.infected = true;
+      pick.cell.timerMs = dur;
+      pick.cell.maxTimerMs = dur;
+      const px = this.offsetX + pick.c * this.cellSize + 15;
+      const py = this.offsetY + pick.r * this.cellSize + 15;
+      this.addFloatingText(`☣️ ${Math.ceil(dur / 1000)}s`, px - 18, py, '#39ff14');
+    }
+  }
+
+  addFloatingText(text, x, y, color) {
+    this.floatingTexts.push({ text, x, y, color, alpha: 1 });
+  }
+
+  clearLines() {
+    let cleared = 0;
+    let curedBlocks = 0;
+
+    for (let r = this.rows - 1; r >= 0; r--) {
+      if (this.grid[r].every(cell => cell !== null)) {
+        for (let c = 0; c < this.cols; c++) {
+          const cell = this.grid[r][c];
+          if (cell.infected) curedBlocks++;
+          for (let i = 0; i < 4; i++) {
+            this.particles.push({
+              x: this.offsetX + c * this.cellSize + 15,
+              y: this.offsetY + r * this.cellSize + 15,
+              vx: (Math.random() - 0.5) * 6.5,
+              vy: (Math.random() - 0.5) * 6.5 - 1.5,
+              size: Math.random() * 5 + 3,
+              color: cell.infected ? '#39ff14' : cell.color,
+              alpha: 1
+            });
+          }
+        }
+        this.grid.splice(r, 1);
+        this.grid.unshift(Array(this.cols).fill(null));
+        cleared++;
+        r++;
+      }
+    }
+
+    if (cleared > 0) {
+      sfx.clear();
+      const widthBonus = this.cols === 15 ? 1.5 : 1;
+      const linePoints = [0, 120, 350, 600, 950];
+      const baseGain = Math.round((linePoints[cleared] || 1100) * this.level * widthBonus);
+      const cureBonus = curedBlocks * 250 * this.level;
+      this.score += baseGain + cureBonus;
+      this.lines += cleared;
+
+      if (curedBlocks > 0) {
+        sfx.bonus();
+        this.addFloatingText(
+          `☣️ ¡CURADO +${cureBonus}!`,
+          canvas.width / 2 - 70,
+          canvas.height / 2,
+          '#39ff14'
+        );
+      }
+
+      this.recalcDifficulty();
+    }
+  }
+
+  recalcDifficulty() {
+    // La dificultad sube progresivamente por líneas y por tiempo sobrevivido
+    const timeLevels = Math.floor(this.survivalTimer / 30000);
+    this.level = Math.floor(this.lines / 6) + timeLevels + 1;
+    this.dropInterval = Math.max(105, 820 - (this.level - 1) * 62);
+  }
+
+  countActiveInfected() {
+    let count = 0;
+    for (let r = 0; r < this.rows; r++) {
+      for (let c = 0; c < this.cols; c++) {
+        if (this.grid[r][c] && this.grid[r][c].infected) count++;
+      }
+    }
+    return count;
+  }
+
+  handleKeyDown(code) {
+    if (this.gameOver) return;
+    if (code === 'ArrowLeft' || code === 'KeyA') this.move(-1);
+    else if (code === 'ArrowRight' || code === 'KeyD') this.move(1);
+    else if (code === 'ArrowUp' || code === 'KeyW') this.rotate();
+    else if (code === 'ArrowDown' || code === 'KeyS') this.softDrop();
+    else if (code === 'Space') this.hardDrop();
+    else if (code === 'KeyC' || code === 'ShiftLeft' || code === 'ShiftRight') this.holdPiece();
+  }
+
+  update(dt) {
+    if (this.gameOver) return;
+    this.pulseClock += dt;
+    this.survivalTimer += dt;
+    this.outbreakTimer += dt;
+
+    // Cada cierto tiempo brota una nueva infección en un bloque fijado
+    const outbreakInterval = Math.max(4500, 11500 - (this.level - 1) * 750);
+    if (this.outbreakTimer >= outbreakInterval) {
+      this.outbreakTimer = 0;
+      this.spreadRandomInfection();
+      this.recalcDifficulty();
+    }
+
+    // Actualizar cuenta regresiva de los bloques infectados en el tablero
+    let explodedAny = false;
+    for (let r = 0; r < this.rows; r++) {
+      for (let c = 0; c < this.cols; c++) {
+        const cell = this.grid[r][c];
+        if (cell && cell.infected) {
+          cell.timerMs -= dt;
+          if (cell.timerMs <= 0) {
+            // ¡EXPLOTA EL CUADRADITO! Queda hueco y resta puntos
+            const px = this.offsetX + c * this.cellSize + 15;
+            const py = this.offsetY + r * this.cellSize + 15;
+            for (let i = 0; i < 14; i++) {
+              this.particles.push({
+                x: px,
+                y: py,
+                vx: (Math.random() - 0.5) * 7,
+                vy: (Math.random() - 0.5) * 7,
+                size: Math.random() * 5 + 3,
+                color: i % 2 === 0 ? '#39ff14' : '#ffbe0b',
+                alpha: 1
+              });
+            }
+            this.grid[r][c] = null; // Queda el hueco en la fila
+            const penalty = 150 * this.level;
+            this.score = Math.max(0, this.score - penalty);
+            this.addFloatingText(`💥 -${penalty} PTS`, px - 32, py, '#ffbe0b');
+            explodedAny = true;
+          }
+        }
+      }
+    }
+
+    if (explodedAny) {
+      sfx.explode();
+      this.syncUI();
+    }
+
+    // Caída de la pieza actual
+    this.dropCounter += dt;
+    if (this.dropCounter >= this.dropInterval) {
+      this.dropCounter = 0;
+      if (!this.collide(this.piece.matrix, this.piece.x, this.piece.y + 1)) {
+        this.piece.y++;
+      } else {
+        this.lockPiece();
+      }
+    }
+
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.alpha -= 0.03;
+      if (p.alpha <= 0) this.particles.splice(i, 1);
+    }
+
+    for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
+      const ft = this.floatingTexts[i];
+      ft.y -= 1.0;
+      ft.alpha -= 0.022;
+      if (ft.alpha <= 0) this.floatingTexts.splice(i, 1);
+    }
+  }
+
+  drawZombieBlock(context, x, y, size, color, infectionInfo = null, isGhost = false) {
+    context.save();
+    if (isGhost) {
+      context.strokeStyle = '#39ff14';
+      context.lineWidth = 2;
+      context.strokeRect(x + 2, y + 2, size - 4, size - 4);
+      context.fillStyle = 'rgba(57, 255, 20, 0.14)';
+      context.fillRect(x + 2, y + 2, size - 4, size - 4);
+      context.restore();
+      return;
+    }
+
+    context.fillStyle = color;
+    context.shadowColor = infectionInfo ? '#39ff14' : color;
+    context.shadowBlur = infectionInfo ? 14 : 6;
+    context.fillRect(x + 1, y + 1, size - 2, size - 2);
+
+    // Bisel tóxico
+    context.shadowBlur = 0;
+    context.fillStyle = 'rgba(233, 255, 219, 0.28)';
+    context.fillRect(x + 3, y + 3, size - 6, 3);
+
+    // Si es un cuadradito infectado, dibujar espora pulsante y cuenta regresiva
+    if (infectionInfo) {
+      const secLeft = Math.max(1, Math.ceil(infectionInfo.timerMs / 1000));
+      const urgent = secLeft <= 6;
+      const pulse = 0.5 + 0.5 * Math.sin(this.pulseClock * (urgent ? 0.018 : 0.007));
+
+      // Núcleo oscuro bio-zombie
+      context.fillStyle = urgent
+        ? `rgba(85, 20, 10, ${0.72 + pulse * 0.25})`
+        : `rgba(8, 28, 12, ${0.72 + pulse * 0.2})`;
+      context.fillRect(x + 3, y + 3, size - 6, size - 6);
+
+      // Borde radiactivo pulsante
+      context.strokeStyle = urgent ? '#ffbe0b' : '#39ff14';
+      context.lineWidth = 2;
+      context.strokeRect(x + 2, y + 2, size - 4, size - 4);
+
+      // Número de cuenta regresiva
+      context.fillStyle = urgent ? '#ffbe0b' : '#39ff14';
+      context.font = '900 11px Orbitron';
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillText(`${secLeft}s`, x + size / 2, y + size / 2 + 1);
+    }
+
+    context.restore();
+  }
+
+  drawMiniCanvases() {
+    this.renderMini(nextCtx, nextCanvas, this.nextKey);
+    this.renderMini(holdCtx, holdCanvas, this.holdKey);
+  }
+
+  renderMini(context, cnv, key) {
+    context.clearRect(0, 0, cnv.width, cnv.height);
+    if (!key) return;
+    const { matrix, color } = this.shapes[key];
+    const size = 20;
+    const totalW = matrix[0].length * size;
+    const totalH = matrix.length * size;
+    const startX = (cnv.width - totalW) / 2;
+    const startY = (cnv.height - totalH) / 2;
+
+    for (let r = 0; r < matrix.length; r++) {
+      for (let c = 0; c < matrix[r].length; c++) {
+        if (matrix[r][c]) {
+          this.drawZombieBlock(context, startX + c * size, startY + r * size, size, color);
+        }
+      }
+    }
+  }
+
+  draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const boardW = this.cols * this.cellSize;
+    const boardH = this.rows * this.cellSize;
+
+    // Fondo estilo laboratorio zombie / pantano radiactivo
+    ctx.save();
+    ctx.fillStyle = '#061209';
+    ctx.strokeStyle = 'rgba(57, 255, 20, 0.55)';
+    ctx.lineWidth = 2;
+    ctx.fillRect(this.offsetX, this.offsetY, boardW, boardH);
+    ctx.strokeRect(this.offsetX - 2, this.offsetY - 2, boardW + 4, boardH + 4);
+
+    ctx.strokeStyle = 'rgba(57, 255, 20, 0.06)';
+    ctx.lineWidth = 1;
+    for (let c = 1; c < this.cols; c++) {
+      const x = this.offsetX + c * this.cellSize;
+      ctx.beginPath();
+      ctx.moveTo(x, this.offsetY);
+      ctx.lineTo(x, this.offsetY + boardH);
+      ctx.stroke();
+    }
+    for (let r = 1; r < this.rows; r++) {
+      const y = this.offsetY + r * this.cellSize;
+      ctx.beginPath();
+      ctx.moveTo(this.offsetX, y);
+      ctx.lineTo(this.offsetX + boardW, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Celdas fijadas en el tablero
+    for (let r = 0; r < this.rows; r++) {
+      for (let c = 0; c < this.cols; c++) {
+        const cell = this.grid[r][c];
+        if (cell) {
+          this.drawZombieBlock(
+            ctx,
+            this.offsetX + c * this.cellSize,
+            this.offsetY + r * this.cellSize,
+            this.cellSize,
+            cell.color,
+            cell.infected ? cell : null,
+            false
+          );
+        }
+      }
+    }
+
+    // Sombra fantasma y pieza activa
+    if (this.piece && !this.gameOver) {
+      const ghostY = this.getGhostY();
+      const { matrix, infectedMap, x, y, color } = this.piece;
+
+      for (let r = 0; r < matrix.length; r++) {
+        for (let c = 0; c < matrix[r].length; c++) {
+          if (matrix[r][c]) {
+            this.drawZombieBlock(
+              ctx,
+              this.offsetX + (x + c) * this.cellSize,
+              this.offsetY + (ghostY + r) * this.cellSize,
+              this.cellSize,
+              color,
+              null,
+              true
+            );
+            this.drawZombieBlock(
+              ctx,
+              this.offsetX + (x + c) * this.cellSize,
+              this.offsetY + (y + r) * this.cellSize,
+              this.cellSize,
+              color,
+              infectedMap[r][c],
+              false
+            );
+          }
+        }
+      }
+    }
+
+    // Partículas ácidas
+    for (const p of this.particles) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, p.alpha);
+      ctx.fillStyle = p.color;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 10;
+      ctx.fillRect(p.x, p.y, p.size, p.size);
+      ctx.restore();
+    }
+
+    // Textos flotantes de purga o explosión
+    for (const ft of this.floatingTexts) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, ft.alpha);
+      ctx.font = '900 13px Orbitron';
+      ctx.fillStyle = ft.color;
+      ctx.shadowColor = ft.color;
+      ctx.shadowBlur = 8;
+      ctx.fillText(ft.text, ft.x, ft.y);
+      ctx.restore();
+    }
+  }
+
+  syncUI() {
+    setHighScore('infected', this.score);
+    scoreValueEl.textContent = this.score.toLocaleString();
+    highScoreValueEl.textContent = getHighScore('infected').toLocaleString();
+    metaValue1El.textContent = `NVL ${this.level}`;
+    metaValue2El.textContent = `${this.countActiveInfected()} ☣️`;
+    updateHUD(this.score, 'BIO-NVL', this.level);
+  }
+}
+
+// ============================================================================
+// JUEGO 3: SNAKE (NEON VIPER)
 // ============================================================================
 class SnakeGame {
   constructor() {
@@ -1114,11 +1755,12 @@ class SnakeGame {
     highScoreValueEl.textContent = getHighScore('snake').toLocaleString();
     metaValue1El.textContent = `${this.speedLevel}x`;
     metaValue2El.textContent = this.snake.length;
+    updateHUD(this.score, 'VEL', `${this.speedLevel}x`);
   }
 }
 
 // ============================================================================
-// JUEGO 3: TURBO 2D (HIGHWAY DRIFT)
+// JUEGO 4: TURBO 2D (HIGHWAY DRIFT)
 // ============================================================================
 class RacerGame {
   constructor() {
@@ -1529,6 +2171,7 @@ class RacerGame {
     const kmh = Math.round(this.player.speed * 0.45);
     metaValue1El.textContent = `${kmh} km/h`;
     metaValue2El.textContent = `${this.distance.toFixed(1)} km`;
+    updateHUD(this.score, 'KM/H', kmh);
 
     const nitroPct = Math.round(this.nitro);
     nitroPercentEl.textContent = `${nitroPct}%`;
@@ -1540,10 +2183,11 @@ class RacerGame {
 }
 
 // ============================================================================
-// CONTROLADOR PRINCIPAL DEL ARCADE
+// CONTROLADOR PRINCIPAL DEL ARCADE Y BOTONES DE PAUSA / PANTALLA COMPLETA
 // ============================================================================
 const games = {
   tetris: new TetrisGame(),
+  infected: new TetrisInfectedGame(),
   snake: new SnakeGame(),
   racer: new RacerGame()
 };
@@ -1553,19 +2197,37 @@ let isRunning = false;
 let isPaused = false;
 let lastTime = performance.now();
 
-// Selector de ancho de Tetris (+50% = 15 columnas vs 10 columnas)
+function syncPauseButtonsUI() {
+  if (!isRunning) {
+    startPauseBtn.textContent = '▶ INICIAR PARTIDA';
+    dedicatedPauseBtn.textContent = '⏸ PAUSA';
+    hudPauseBtn.textContent = '⏸ PAUSA';
+    mobilePauseBtn.textContent = '⏸ PAUSA';
+  } else if (isPaused) {
+    startPauseBtn.textContent = '▶ REANUDAR';
+    dedicatedPauseBtn.textContent = '▶ REANUDAR';
+    hudPauseBtn.textContent = '▶ REANUDAR';
+    mobilePauseBtn.textContent = '▶ REANUDAR';
+  } else {
+    startPauseBtn.textContent = '⏸ PAUSAR';
+    dedicatedPauseBtn.textContent = '⏸ PAUSA';
+    hudPauseBtn.textContent = '⏸ PAUSA';
+    mobilePauseBtn.textContent = '⏸ PAUSA';
+  }
+}
+
 if (tetrisWideToggle) {
   tetrisWideToggle.addEventListener('change', () => {
     const isWide = tetrisWideToggle.checked;
     GAME_META.tetris.title = isWide ? 'TETRIS // MODO ANCHO +50%' : 'TETRIS // MODO CLÁSICO';
-    if (activeGameKey === 'tetris') {
-      gameTitleEl.textContent = GAME_META.tetris.title;
+    if (activeGameKey === 'tetris' || activeGameKey === 'infected') {
+      gameTitleEl.textContent = GAME_META[activeGameKey].title;
       isRunning = false;
       isPaused = false;
-      games.tetris.reset();
-      games.tetris.draw();
-      showOverlay('MODO ACTUALIZADO', GAME_META.tetris.title, 'Pulsa el botón o presiona ENTER para comenzar', 'JUGAR AHORA');
-      startPauseBtn.textContent = '▶ INICIAR PARTIDA';
+      games[activeGameKey].reset();
+      games[activeGameKey].draw();
+      showOverlay('MODO ACTUALIZADO', GAME_META[activeGameKey].title, 'Pulsa el botón o toca la pantalla para comenzar', '▶ JUGAR AHORA', false);
+      syncPauseButtonsUI();
     }
   });
 }
@@ -1585,7 +2247,13 @@ function switchGame(gameKey) {
   metaLabel1El.textContent = meta.meta1;
   metaLabel2El.textContent = meta.meta2;
 
-  tetrisExtrasEl.classList.toggle('hidden', gameKey !== 'tetris');
+  const isZombie = gameKey === 'infected';
+  canvasFrame.classList.toggle('infected-theme', isZombie);
+  gameThemeDot.className = isZombie ? 'dot zombie' : 'dot cyan';
+
+  const isAnyTetris = gameKey === 'tetris' || gameKey === 'infected';
+  tetrisExtrasEl.classList.toggle('hidden', !isAnyTetris);
+  infectedLegendEl.classList.toggle('hidden', !isZombie);
   snakeExtrasEl.classList.toggle('hidden', gameKey !== 'snake');
   racerExtrasEl.classList.toggle('hidden', gameKey !== 'racer');
 
@@ -1596,15 +2264,16 @@ function switchGame(gameKey) {
   games[gameKey].reset();
   games[gameKey].draw();
 
-  showOverlay('LISTO PARA JUGAR', meta.title, 'Pulsa el botón o presiona ENTER para comenzar', 'JUGAR AHORA');
-  startPauseBtn.textContent = '▶ INICIAR PARTIDA';
+  showOverlay('LISTO PARA JUGAR', meta.title, 'Pulsa el botón, presiona ENTER o toca la pantalla', '▶ JUGAR AHORA', false);
+  syncPauseButtonsUI();
 }
 
-function showOverlay(badge, title, subtitle, btnText) {
+function showOverlay(badge, title, subtitle, btnText, showRestart = false) {
   overlayBadge.textContent = badge;
   overlayTitle.textContent = title;
   overlaySubtitle.textContent = subtitle;
   overlayActionBtn.textContent = btnText;
+  overlayRestartBtn.classList.toggle('hidden', !showRestart);
   canvasOverlay.classList.remove('hidden');
 }
 
@@ -1620,7 +2289,7 @@ function startOrPauseGame() {
     isRunning = true;
     isPaused = false;
     hideOverlay();
-    startPauseBtn.textContent = '⏸ PAUSAR';
+    syncPauseButtonsUI();
     return;
   }
 
@@ -1628,16 +2297,29 @@ function startOrPauseGame() {
     isRunning = true;
     isPaused = false;
     hideOverlay();
-    startPauseBtn.textContent = '⏸ PAUSAR';
   } else if (!isPaused) {
     isPaused = true;
-    showOverlay('JUEGO EN PAUSA', GAME_META[activeGameKey].title, 'Tómate un respiro. Tu partida te espera.', 'REANUDAR');
-    startPauseBtn.textContent = '▶ REANUDAR';
+    showOverlay('JUEGO EN PAUSA', GAME_META[activeGameKey].title, 'Partida en pausa. Puedes reanudar o reiniciar.', '▶ REANUDAR PARTIDA', true);
   } else {
     isPaused = false;
     hideOverlay();
-    startPauseBtn.textContent = '⏸ PAUSAR';
   }
+  syncPauseButtonsUI();
+}
+
+function togglePauseOnly() {
+  if (isWelcomeModalOpen()) return;
+  if (!isRunning) {
+    startOrPauseGame();
+    return;
+  }
+  isPaused = !isPaused;
+  if (isPaused) {
+    showOverlay('JUEGO EN PAUSA', GAME_META[activeGameKey].title, 'Partida en pausa. Puedes reanudar o reiniciar.', '▶ REANUDAR PARTIDA', true);
+  } else {
+    hideOverlay();
+  }
+  syncPauseButtonsUI();
 }
 
 function restartActiveGame() {
@@ -1647,31 +2329,76 @@ function restartActiveGame() {
   isRunning = true;
   isPaused = false;
   hideOverlay();
-  startPauseBtn.textContent = '⏸ PAUSAR';
+  syncPauseButtonsUI();
 }
 
 function triggerGameOver(finalScore) {
   isRunning = false;
   isPaused = false;
+  syncPauseButtonsUI();
   startPauseBtn.textContent = '▶ NUEVA PARTIDA';
   showOverlay(
     'FIN DE LA PARTIDA',
     `${currentPlayer.name}: ${finalScore.toLocaleString()} PTS`,
     '¿Listo para superar tu récord en el Salón de la Fama?',
-    'JUGAR DE NUEVO'
+    '▶ JUGAR DE NUEVO',
+    false
   );
 }
 
-// Eventos de botones y pestañas
+// Modo Pantalla Completa (Nativo + Fallback CSS para móviles)
+function toggleFullscreen() {
+  const isNativeFull = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+  const isPseudoFull = stageContainer.classList.contains('pseudo-fullscreen');
+
+  if (!isNativeFull && !isPseudoFull) {
+    if (stageContainer.requestFullscreen) {
+      stageContainer.requestFullscreen().catch(() => {
+        stageContainer.classList.add('pseudo-fullscreen');
+        updateFullscreenBtnUI();
+      });
+    } else if (stageContainer.webkitRequestFullscreen) {
+      stageContainer.webkitRequestFullscreen();
+    } else {
+      stageContainer.classList.add('pseudo-fullscreen');
+    }
+  } else {
+    if (isNativeFull) {
+      if (document.exitFullscreen) document.exitFullscreen();
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    }
+    stageContainer.classList.remove('pseudo-fullscreen');
+  }
+  setTimeout(updateFullscreenBtnUI, 100);
+}
+
+function updateFullscreenBtnUI() {
+  const active = Boolean(
+    document.fullscreenElement ||
+    document.webkitFullscreenElement ||
+    stageContainer.classList.contains('pseudo-fullscreen')
+  );
+  fullscreenBtn.textContent = active ? '✕ SALIR PANTALLA COMPLETA' : '⛶ PANTALLA COMPLETA';
+}
+
+document.addEventListener('fullscreenchange', updateFullscreenBtnUI);
+document.addEventListener('webkitfullscreenchange', updateFullscreenBtnUI);
+fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+// Eventos de botones de acción y pausa
 tabButtons.forEach(btn => {
   btn.addEventListener('click', () => switchGame(btn.dataset.game));
 });
 
 startPauseBtn.addEventListener('click', startOrPauseGame);
+dedicatedPauseBtn.addEventListener('click', togglePauseOnly);
+hudPauseBtn.addEventListener('click', togglePauseOnly);
+mobilePauseBtn.addEventListener('click', togglePauseOnly);
 overlayActionBtn.addEventListener('click', startOrPauseGame);
+overlayRestartBtn.addEventListener('click', restartActiveGame);
 restartBtn.addEventListener('click', restartActiveGame);
 
-// Eventos de teclado (ignorados mientras el modal de bienvenida o el input estén activos)
+// Eventos de teclado
 window.addEventListener('keydown', e => {
   if (isWelcomeModalOpen() || document.activeElement === usernameInput) {
     return;
@@ -1688,7 +2415,7 @@ window.addEventListener('keydown', e => {
   }
 
   if (e.code === 'KeyP') {
-    if (isRunning) startOrPauseGame();
+    togglePauseOnly();
     return;
   }
 
@@ -1705,8 +2432,66 @@ window.addEventListener('keyup', e => {
   }
 });
 
-// Controles táctiles / ratón en pantalla
-document.querySelectorAll('.touch-btn').forEach(btn => {
+// ============================================================================
+// TOQUES DIRECTOS EN LA PANTALLA (SOBRE EL CANVAS)
+// Arriba: Rotar/Arriba | Abajo: Caer Rápido/Abajo | Izquierda: Izq | Derecha: Der
+// ============================================================================
+let activeCanvasTouchKey = null;
+
+function flashTouchZone(zoneEl) {
+  if (!zoneEl) return;
+  zoneEl.classList.add('active-flash');
+  setTimeout(() => zoneEl.classList.remove('active-flash'), 170);
+}
+
+function getScreenZoneAction(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const nx = (clientX - rect.left) / rect.width;
+  const ny = (clientY - rect.top) / rect.height;
+
+  // Zona superior (26% superior): Rotar / Ir arriba
+  if (ny < 0.26) {
+    flashTouchZone(tzTop);
+    return 'ArrowUp';
+  }
+  // Zona inferior (26% inferior): Caer rápido (Hard Drop en Tetris) / Ir abajo
+  if (ny > 0.74) {
+    flashTouchZone(tzBottom);
+    const isAnyTetris = activeGameKey === 'tetris' || activeGameKey === 'infected';
+    return isAnyTetris ? 'Space' : 'ArrowDown';
+  }
+  // Mitad izquierda vs mitad derecha
+  if (nx < 0.5) {
+    flashTouchZone(tzLeft);
+    return 'ArrowLeft';
+  } else {
+    flashTouchZone(tzRight);
+    return 'ArrowRight';
+  }
+}
+
+canvas.addEventListener('pointerdown', e => {
+  if (isWelcomeModalOpen()) return;
+  if (!isRunning || isPaused) return;
+  e.preventDefault();
+
+  const key = getScreenZoneAction(e.clientX, e.clientY);
+  activeCanvasTouchKey = key;
+  games[activeGameKey].handleKeyDown(key);
+});
+
+window.addEventListener('pointerup', () => {
+  if (activeCanvasTouchKey) {
+    const current = games[activeGameKey];
+    if (current.handleKeyUp) {
+      current.handleKeyUp(activeCanvasTouchKey);
+    }
+    activeCanvasTouchKey = null;
+  }
+});
+
+// Controles táctiles de la botonera inferior
+document.querySelectorAll('.touch-btn[data-key]').forEach(btn => {
   const key = btn.dataset.key;
   const press = e => {
     e.preventDefault();
